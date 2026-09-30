@@ -18,13 +18,9 @@ app.use(express.urlencoded({ extended: true }));
 // Serve Static Frontend UI
 app.use(express.static(path.join(__dirname, '../Client')));
 
-// Health check / base route
-app.get('/', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'Server is running successfully with MongoDB!',
-    timestamp: new Date().toISOString()
-  });
+// Serve Vendor UI at root and /vendor
+app.get(['/', '/vendor'], (req, res) => {
+  res.sendFile(path.join(__dirname, '../Client/index.html'));
 });
 
 // Sample API test route
@@ -39,10 +35,13 @@ app.get('/api/health', (req, res) => {
 // Route Imports
 const vendorRoutes = require('./routes/vendorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const clientRoutes = require('./routes/clientRoutes');
 
 // Mount API Routes
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/client', clientRoutes);
+app.use('/api/fcfs', clientRoutes);
 
 // Admin Portal Route
 app.get('/admin', (req, res) => {

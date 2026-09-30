@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Moffin 2 - Vendor Payment Portal</title>
+  <title>Moffin 2 - Vendor Payment & Top-Up Portal</title>
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
   <!-- Navigation Bar -->
@@ -13,12 +13,13 @@
     <div class="nav-container">
       <div class="logo">
         <span class="logo-icon">⚡</span>
-        <span class="logo-text">Moffin 2</span>
+        <span class="logo-text">Moffin 2 Vendor</span>
         <span class="badge" id="serverStatusBadge">Checking server...</span>
       </div>
       <div class="nav-actions" id="navAuthActions">
         <span id="userGreeting" class="user-greeting"></span>
-        <button id="logoutBtn" class="btn btn-secondary hidden" onclick="logout()">Logout</button>
+        <a href="/admin" class="btn btn-sm btn-secondary" target="_blank">🛡️ Admin Portal ↗</a>
+        <button id="logoutBtn" class="btn btn-sm btn-danger hidden" onclick="logout()">Logout</button>
       </div>
     </div>
   </nav>
@@ -36,7 +37,7 @@
       <div class="card">
         <div class="card-header">
           <h2>🔐 Vendor Login</h2>
-          <p class="subtitle">Access your vendor dashboard</p>
+          <p class="subtitle">Access your vendor dashboard & wallet</p>
         </div>
         <form id="loginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
@@ -55,7 +56,7 @@
       <div class="card">
         <div class="card-header">
           <h2>📝 Vendor Registration</h2>
-          <p class="subtitle">Create a new vendor account</p>
+          <p class="subtitle">Create a new vendor account with profile picture</p>
         </div>
         <form id="registerForm" onsubmit="handleRegister(event)">
           <div class="form-row">
@@ -121,26 +122,163 @@
         </div>
         <div class="overview-status">
           <div class="status-item">
-            <span class="label">Status</span>
-            <span id="dashStatusBadge" class="badge">Pending</span>
+            <span class="label">KYC Verification</span>
+            <span id="dashStatusBadge" class="badge badge-pending">Pending</span>
           </div>
           <div class="status-item">
-            <span class="label">Account</span>
-            <span id="dashActiveBadge" class="badge">Active</span>
+            <span class="label">Account Status</span>
+            <span id="dashActiveBadge" class="badge badge-active">Active</span>
           </div>
         </div>
       </div>
 
       <!-- Tabs Navigation -->
       <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('banksTab')">🏦 Bank Accounts</button>
+        <button class="tab-btn active" onclick="switchTab('walletTab')">💰 Wallet & Ledger</button>
+        <button class="tab-btn" onclick="switchTab('topupsTab')">⚡ Top-Up Requests</button>
+        <button class="tab-btn" onclick="switchTab('banksTab')">🏦 Bank Accounts</button>
         <button class="tab-btn" onclick="switchTab('walletsTab')">👛 Wallets & UPI</button>
         <button class="tab-btn" onclick="switchTab('profileTab')">👤 Personal Profile</button>
-        <a href="/admin" class="tab-btn" style="text-decoration: none;" target="_blank">🛡️ SuperAdmin Portal ↗</a>
       </div>
 
-      <!-- TAB 1: BANK ACCOUNTS -->
-      <div id="banksTab" class="tab-content">
+      <!-- TAB 1: WALLET & LEDGER -->
+      <div id="walletTab" class="tab-content">
+        <!-- Balance KPI Cards -->
+        <div class="stats-grid">
+          <div class="stat-card" style="border-left: 4px solid #10b981;">
+            <span class="stat-title">Available Balance</span>
+            <span class="stat-value" id="walletAvailableBalance">₹0.00</span>
+            <span class="stat-subtitle">Funds ready for client allocation</span>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+            <span class="stat-title">Locked Balance</span>
+            <span class="stat-value" id="walletLockedBalance" style="color: #d97706;">₹0.00</span>
+            <span class="stat-subtitle">Funds held in pending processing</span>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #4f46e5;">
+            <span class="stat-title">Commission Tier</span>
+            <span class="stat-value" id="vendorTierName" style="font-size: 1.4rem; color: #4338ca;">Bronze</span>
+            <span class="stat-subtitle" id="vendorTierRate">Fee: 2.0%</span>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #0284c7;">
+            <span class="stat-title">FCFS Queue Status</span>
+            <span class="stat-value" id="vendorQueuePosition" style="font-size: 1.4rem; color: #0284c7;">#1</span>
+            <span class="stat-subtitle" id="vendorQueueSkips">Skips: 0</span>
+          </div>
+        </div>
+
+        <!-- Ledger Table Card -->
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <h3>📜 Wallet Transaction Ledger</h3>
+              <p class="subtitle">Complete audit trail of all financial movements</p>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="fetchVendorWalletAndLedger()">🔄 Refresh</button>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Txn ID</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Balance Flow</th>
+                  <th>Reference</th>
+                  <th>Date & Time</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="walletLedgerTbody">
+                <tr>
+                  <td colspan="7" class="empty-state">Loading ledger...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: TOP-UP REQUESTS -->
+      <div id="topupsTab" class="tab-content hidden">
+        <div class="grid-2">
+          
+          <!-- Request Top-Up Form -->
+          <div class="card">
+            <div class="card-header">
+              <h3>⚡ Create Top-Up Request</h3>
+              <p class="subtitle">Request company payment destination to load your wallet</p>
+            </div>
+            <form id="createTopUpForm" onsubmit="handleCreateTopUp(event)">
+              <div class="form-group">
+                <label>Requested Amount (₹) *</label>
+                <input type="number" id="topupAmount" required min="100" step="any" placeholder="e.g. 50000">
+              </div>
+              <div class="form-group">
+                <label>Preferred Payment Method *</label>
+                <select id="topupMethod" required onchange="handleTopupMethodChange()">
+                  <option value="bank">Bank Transfer (IMPS / NEFT / RTGS)</option>
+                  <option value="wallet">UPI / Wallet</option>
+                  <option value="both">Both Bank & Wallet</option>
+                </select>
+              </div>
+
+              <!-- Select from linked Bank Accounts -->
+              <div id="topupBankSelectGroup" class="form-group">
+                <label>Select From Your Linked Bank Accounts</label>
+                <select id="topupSelectedBank">
+                  <option value="">-- Select a Bank Account --</option>
+                </select>
+              </div>
+
+              <!-- Select from linked Wallets -->
+              <div id="topupWalletSelectGroup" class="form-group hidden">
+                <label>Select From Your Linked Wallets / UPI</label>
+                <select id="topupSelectedWallet">
+                  <option value="">-- Select a Wallet / UPI --</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Note to Admin (Optional)</label>
+                <input type="text" id="topupNote" placeholder="e.g. Urgent liquidity for evening batch">
+              </div>
+              <button type="submit" class="btn btn-primary w-full">Submit Top-Up Request</button>
+            </form>
+          </div>
+
+          <!-- Top-Up Instructions Guide -->
+          <div class="card">
+            <div class="card-header">
+              <h3>ℹ️ Top-Up Workflow Guide</h3>
+            </div>
+            <div class="info-box">
+              <strong>Step 1:</strong> Submit your requested amount.<br>
+              <strong>Step 2:</strong> SuperAdmin assigns active Company Bank / Wallet details.<br>
+              <strong>Step 3:</strong> Transfer the exact funds & upload proof with UTR reference number.<br>
+              <strong>Step 4:</strong> SuperAdmin verifies and approves payment -> wallet is atomically credited.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Active & Past Top-Up Requests List -->
+        <div class="card mt-4">
+          <div class="card-header flex-between">
+            <div>
+              <h3>📋 Top-Up Requests Tracker</h3>
+              <p class="subtitle">Real-time status of your fund loading requests</p>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="fetchVendorTopUps()">🔄 Refresh</button>
+          </div>
+          <div id="vendorTopUpsList" class="items-list">
+            <p class="empty-state">No top-up requests yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: BANK ACCOUNTS -->
+      <div id="banksTab" class="tab-content hidden">
         <div class="grid-2">
           
           <!-- Bank Accounts List -->
@@ -194,7 +332,7 @@
         </div>
       </div>
 
-      <!-- TAB 2: WALLETS -->
+      <!-- TAB 4: WALLETS -->
       <div id="walletsTab" class="tab-content hidden">
         <div class="grid-2">
           
@@ -239,7 +377,7 @@
         </div>
       </div>
 
-      <!-- TAB 3: PERSONAL PROFILE -->
+      <!-- TAB 5: PERSONAL PROFILE -->
       <div id="profileTab" class="tab-content hidden">
         <div class="grid-2">
           
@@ -306,6 +444,44 @@
     </div>
 
   </main>
+
+  <!-- SUBMIT PAYMENT PROOF MODAL -->
+  <div id="paymentProofModal" class="modal-backdrop hidden">
+    <div class="modal-card card">
+      <div class="card-header flex-between">
+        <h3>💳 Submit Payment Confirmation</h3>
+        <button type="button" class="btn-close" onclick="closePaymentProofModal()">✕</button>
+      </div>
+      
+      <div id="modalTopUpDetails" class="info-box mb-3">
+        <!-- Injected via JS -->
+      </div>
+
+      <form id="paymentProofForm" onsubmit="handleSubmitPaymentProof(event)">
+        <input type="hidden" id="proofTopUpId">
+        <div class="form-group">
+          <label>Amount Transferred (₹) *</label>
+          <input type="number" id="proofAmountPaid" required step="any">
+        </div>
+        <div class="form-group">
+          <label>Bank Reference Number / UTR / Txn ID *</label>
+          <input type="text" id="proofTransactionId" required placeholder="e.g. UTR1234567890">
+        </div>
+        <div class="form-group">
+          <label>Payment Screenshot / Receipt (Upload to Cloudinary) *</label>
+          <input type="file" id="proofFile" required accept="image/jpeg,image/png,image/webp">
+        </div>
+        <div class="form-group">
+          <label>Remark / Note (Optional)</label>
+          <input type="text" id="proofNote" placeholder="e.g. Transferred from HDFC Mobile App">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closePaymentProofModal()">Cancel</button>
+          <button type="submit" class="btn btn-success" id="btnSubmitProof">Submit Payment Proof</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Edit Bank Account Modal -->
   <div id="editBankModal" class="modal-backdrop hidden">

@@ -21,6 +21,32 @@ const {
 } = require('../controllers/vendorController');
 
 const {
+  createTopUp,
+  getVendorTopUps,
+  getTopUpById,
+  submitPaymentConfirmation,
+  getVendorConfirmations,
+  getPaymentConfirmationById
+} = require('../controllers/topUpController');
+
+const {
+  getVendorWallet,
+  getVendorTransactions
+} = require('../controllers/walletController');
+
+const {
+  getVendorQueueStatus
+} = require('../controllers/fcfsController');
+
+const {
+  getDestinations
+} = require('../controllers/paymentDestinationController');
+
+const {
+  getTiers
+} = require('../controllers/tierController');
+
+const {
   authMiddleware,
   vendorAuth,
   validateObjectId
@@ -95,5 +121,45 @@ router.patch(
   validateObjectId('walletSubId'),
   setDefaultWallet
 );
+
+// =============================================================================
+// 5. TOP-UP REQUEST ROUTES (Protected - Vendor only)
+// =============================================================================
+router.post('/topups', authMiddleware, vendorAuth, createTopUp);
+router.get('/topups', authMiddleware, vendorAuth, getVendorTopUps);
+router.get('/topups/:id', authMiddleware, vendorAuth, validateObjectId('id'), getTopUpById);
+
+// =============================================================================
+// 6. PAYMENT CONFIRMATION & PROOF SUBMISSION (Protected - Vendor only)
+// =============================================================================
+router.post(
+  '/topups/:id/payment-confirmation',
+  authMiddleware,
+  vendorAuth,
+  validateObjectId('id'),
+  upload.single('paymentProof'),
+  submitPaymentConfirmation
+);
+router.get('/payment-confirmations', authMiddleware, vendorAuth, getVendorConfirmations);
+router.get(
+  '/payment-confirmations/:id',
+  authMiddleware,
+  vendorAuth,
+  validateObjectId('id'),
+  getPaymentConfirmationById
+);
+
+// =============================================================================
+// 7. FINANCIAL WALLET & LEDGER (Protected - Vendor only)
+// =============================================================================
+router.get('/wallet', authMiddleware, vendorAuth, getVendorWallet);
+router.get('/wallet/transactions', authMiddleware, vendorAuth, getVendorTransactions);
+
+// =============================================================================
+// 8. FCFS STATUS & TIERS (Protected - Vendor only)
+// =============================================================================
+router.get('/fcfs-status', authMiddleware, vendorAuth, getVendorQueueStatus);
+router.get('/payment-destinations', authMiddleware, vendorAuth, getDestinations);
+router.get('/tiers', authMiddleware, vendorAuth, getTiers);
 
 module.exports = router;

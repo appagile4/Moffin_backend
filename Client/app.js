@@ -1,4 +1,4 @@
-// Moffin 2 Client JavaScript
+// Moffin 2 Vendor Client JavaScript
 const API_BASE = window.location.origin && window.location.origin.startsWith('http')
   ? `${window.location.origin}/api`
   : 'http://localhost:5000/api';
@@ -6,6 +6,9 @@ const API_BASE = window.location.origin && window.location.origin.startsWith('ht
 // State Management
 let currentToken = localStorage.getItem('moffin_token') || null;
 let currentVendor = null;
+let cachedBankAccounts = [];
+let cachedWallets = [];
+let cachedTopUps = [];
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -72,9 +75,12 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
 
-  document.getElementById(tabId).classList.remove('hidden');
-  event.target.classList.add('active');
+  const targetEl = document.getElementById(tabId);
+  if (targetEl) targetEl.classList.remove('hidden');
+  if (event && event.target) event.target.classList.add('active');
 
+  if (tabId === 'walletTab') fetchVendorWalletAndLedger();
+  if (tabId === 'topupsTab') fetchVendorTopUps();
   if (tabId === 'banksTab') fetchBankAccounts();
   if (tabId === 'walletsTab') fetchWallets();
 }
@@ -106,7 +112,7 @@ async function handleRegister(event) {
   try {
     const res = await fetch(`${API_BASE}/vendors/register`, {
       method: 'POST',
-      body: formData // Browser sets multipart/form-data with boundary automatically
+      body: formData
     });
 
     const data = await res.json();
@@ -169,6 +175,7 @@ async function loadVendorProfile() {
       currentVendor = data.data.vendor;
       renderDashboardOverview();
       showDashboardSection();
+      fetchVendorWalletAndLedger();
       fetchBankAccounts();
       fetchWallets();
     } else {
@@ -181,7 +188,7 @@ async function loadVendorProfile() {
 }
 
 /**
- * 4. Render Dashboard Info (Avatar / Profile Photo)
+ * 4. Render Dashboard Overview & Profile Data
  */
 function renderDashboardOverview() {
   if (!currentVendor) return;
@@ -227,7 +234,7 @@ function renderDashboardOverview() {
 }
 
 /**
- * 5. Update Profile (Supports uploading new photo to Cloudinary)
+ * 5. Update Profile
  */
 async function handleUpdateProfile(event) {
   event.preventDefault();
@@ -251,15 +258,13 @@ async function handleUpdateProfile(event) {
   try {
     const res = await fetch(`${API_BASE}/vendors/me`, {
       method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${currentToken}`
-      },
+      headers: { 'Authorization': `Bearer ${currentToken}` },
       body: formData
     });
 
     const data = await res.json();
     if (data.success) {
-      showToast('Profile and photo updated successfully on Cloudinary & MongoDB!', 'success');
+      showToast('Profile and photo updated on Cloudinary & MongoDB!', 'success');
       currentVendor = data.data.vendor;
       renderDashboardOverview();
       document.getElementById('profPhotoFile').value = '';
@@ -302,13 +307,312 @@ async function handleChangePassword(event) {
   }
 }
 
-let cachedBankAccounts = [];
-let cachedWallets = [];
+/**
+ * 7. Wallet & Immutable Ledger
+ */
+async function fetchVendorWalletAndLedger() {
+  if (!currentToken) return;
+
+  try {
+    // 1. Fetch Wallet Info & Tier
+    const resWallet = await fetch(`${API_BASE}/vendors/wallet`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const walletData = await resWallet.json();
+
+    if (walletData.success && walletData.data) {
+      const { wallet, tier, queueStatus } = walletData.data;
+      if (wallet) {
+        document.getElementById('walletAvailableBalance').textContent = `₹${(wallet.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        document.getElementById('walletLockedBalance').textContent = `₹${(wallet.lockedBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
+      if (tier) {
+        document.getElementById('vendorTierName').textContent = tier.tierName || 'Bronze';
+        document.getElementById('vendorTierRate').textContent = `Fee: ${tier.commissionPercentage ?? 2}%`;
+      }
+      if (queueStatus) {
+        document.getElementById('vendorQueuePosition').textContent = queueStatus.priority ? `#${queueStatus.priority}` : 'Active';
+        document.getElementById('vendorQueueSkips').textContent = `Skips: ${queueStatus.consecutiveSkips ?? 0}`;
+      }
+    }
+
+    // 2. Fetch Ledger Transactions
+    const resLedger = await fetch(`${API_BASE}/vendors/wallet/ledger?limit=50`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const ledgerData = await resLedger.json();
+
+    const tbody = document.getElementById('walletLedgerTbody');
+    if (ledgerData.success && ledgerData.data?.transactions?.length > 0) {
+      tbody.innerHTML = ledgerData.data.transactions.map(t => {
+        const isCredit = t.transactionType.startsWith('CREDIT');
+        const amountDisplay = `${isCredit ? '+' : '-'}₹${(t.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        const amountColor = isCredit ? '#059669' : '#dc2626';
+        const dateStr = new Date(t.createdAt).toLocaleString('en-IN');
+
+        return `
+          <tr>
+            <td><code>${t.transactionId || t._id.slice(-8)}</code></td>
+            <td><span class="badge badge-${t.transactionType}">${t.transactionType}</span></td>
+            <td style="font-weight: 700; color: ${amountColor};">${amountDisplay}</td>
+            <td>₹${(t.balanceBefore || 0).toLocaleString('en-IN')} ➔ <strong>₹${(t.balanceAfter || 0).toLocaleString('en-IN')}</strong></td>
+            <td><small class="text-muted">${t.referenceId || t.description || 'N/A'}</small></td>
+            <td>${dateStr}</td>
+            <td><span class="badge badge-${t.status}">${t.status}</span></td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No transactions in ledger yet. Top up your wallet to begin.</td></tr>';
+    }
+  } catch (err) {
+    console.error('fetchVendorWalletAndLedger error:', err);
+  }
+}
 
 /**
- * 7. Bank Accounts CRUD
+ * 8. Top-Up Requests & Payment Confirmations
+ */
+function handleTopupMethodChange() {
+  const method = document.getElementById('topupMethod').value;
+  const bankGroup = document.getElementById('topupBankSelectGroup');
+  const walletGroup = document.getElementById('topupWalletSelectGroup');
+
+  if (method === 'bank') {
+    bankGroup.classList.remove('hidden');
+    walletGroup.classList.add('hidden');
+  } else if (method === 'wallet') {
+    bankGroup.classList.add('hidden');
+    walletGroup.classList.remove('hidden');
+  } else if (method === 'both') {
+    bankGroup.classList.remove('hidden');
+    walletGroup.classList.remove('hidden');
+  }
+}
+
+function populateTopupBankAndWalletOptions() {
+  const bankSelect = document.getElementById('topupSelectedBank');
+  const walletSelect = document.getElementById('topupSelectedWallet');
+
+  if (bankSelect) {
+    if (cachedBankAccounts.length > 0) {
+      bankSelect.innerHTML = '<option value="">-- Select a Bank Account --</option>' + cachedBankAccounts.map(b => `
+        <option value="${b._id}" ${b.isDefault ? 'selected' : ''}>
+          ${b.bankName} - ${b.accountNumber} (${b.accountHolderName}) ${b.isDefault ? '[Default]' : ''}
+        </option>
+      `).join('');
+    } else {
+      bankSelect.innerHTML = '<option value="">(No bank accounts linked yet)</option>';
+    }
+  }
+
+  if (walletSelect) {
+    if (cachedWallets.length > 0) {
+      walletSelect.innerHTML = '<option value="">-- Select a Wallet / UPI --</option>' + cachedWallets.map(w => `
+        <option value="${w._id}" ${w.isDefault ? 'selected' : ''}>
+          ${w.walletName} - ${w.walletId} ${w.isDefault ? '[Default]' : ''}
+        </option>
+      `).join('');
+    } else {
+      walletSelect.innerHTML = '<option value="">(No wallets linked yet)</option>';
+    }
+  }
+}
+
+async function handleCreateTopUp(event) {
+  event.preventDefault();
+
+  const method = document.getElementById('topupMethod').value;
+  const selectedBank = document.getElementById('topupSelectedBank')?.value || undefined;
+  const selectedWallet = document.getElementById('topupSelectedWallet')?.value || undefined;
+
+  const payload = {
+    requestedAmount: Number(document.getElementById('topupAmount').value),
+    preferredPaymentMethod: method,
+    selectedBankAccountId: ['bank', 'both'].includes(method) ? selectedBank : undefined,
+    selectedWalletId: ['wallet', 'both'].includes(method) ? selectedWallet : undefined,
+    notes: document.getElementById('topupNote').value.trim() || undefined
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/topups`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Top-Up request submitted! SuperAdmin will assign payment destination.', 'success');
+      document.getElementById('createTopUpForm').reset();
+      handleTopupMethodChange();
+      populateTopupBankAndWalletOptions();
+      fetchVendorTopUps();
+    } else {
+      showToast(data.message || 'Failed to create top-up request', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to connect to server', 'error');
+  }
+}
+
+async function fetchVendorTopUps() {
+  if (!currentToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/topups`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const data = await res.json();
+    const listEl = document.getElementById('vendorTopUpsList');
+
+    if (data.success && data.data?.topUps?.length > 0) {
+      cachedTopUps = data.data.topUps;
+      listEl.innerHTML = data.data.topUps.map(t => {
+        const dateStr = new Date(t.createdAt).toLocaleString('en-IN');
+        const amountStr = `₹${(t.requestedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        const dest = t.paymentDestination;
+
+        let destInfoHtml = '';
+        let actionBtnHtml = '';
+
+        if (t.status === 'PENDING_ADMIN_RESPONSE') {
+          destInfoHtml = `<p style="color: #92400e;">⏳ Waiting for SuperAdmin to provide payment destination details...</p>`;
+        } else if (t.status === 'AWAITING_PAYMENT') {
+          if (dest) {
+            destInfoHtml = `
+              <div class="info-box mt-2" style="background: #f0fdf4; border-color: #bbf7d0; color: #166534;">
+                <strong>💳 Company Payment Destination Assigned:</strong><br>
+                ${dest.destinationType === 'bank' 
+                  ? `Bank: <strong>${dest.bankName}</strong> | A/C: <strong>${dest.accountNumber}</strong> | IFSC: <strong>${dest.ifscCode}</strong> | Holder: ${dest.accountHolderName}`
+                  : `Wallet: <strong>${dest.walletName}</strong> | UPI ID: <strong>${dest.walletId}</strong>`
+                }
+                ${dest.instructions ? `<br><em>Note: ${dest.instructions}</em>` : ''}
+              </div>
+            `;
+          }
+          actionBtnHtml = `<button class="btn btn-sm btn-success" onclick="openPaymentProofModal('${t._id}')">💳 Pay & Submit Proof</button>`;
+        } else if (t.status === 'PAYMENT_SUBMITTED') {
+          destInfoHtml = `<p style="color: #854d0e;">⏳ Payment proof submitted. Verification in progress by SuperAdmin.</p>`;
+        } else if (t.status === 'APPROVED' || t.status === 'COMPLETED') {
+          destInfoHtml = `<p style="color: #059669;">✅ Approved & Credited to your wallet balance.</p>`;
+        } else if (t.status === 'REJECTED') {
+          destInfoHtml = `<p style="color: #dc2626;">❌ Rejected ${t.rejectionReason ? `(Reason: ${t.rejectionReason})` : ''}</p>`;
+        }
+
+        // Display vendor's selected bank/wallet
+        let vendorAccountsHtml = '';
+        if (t.vendorBankDetails && ['bank', 'both'].includes(t.preferredPaymentMethod)) {
+          vendorAccountsHtml += `<small class="text-muted">🏦 Your Bank: <strong>${t.vendorBankDetails.bankName}</strong> (${t.vendorBankDetails.accountNumber})</small><br>`;
+        }
+        if (t.vendorWalletDetails && ['wallet', 'both'].includes(t.preferredPaymentMethod)) {
+          vendorAccountsHtml += `<small class="text-muted">👛 Your Wallet: <strong>${t.vendorWalletDetails.walletName}</strong> (${t.vendorWalletDetails.walletId})</small><br>`;
+        }
+
+        return `
+          <div class="item-card">
+            <div class="item-info">
+              <div class="flex-between">
+                <h4>Top-Up ${t.topUpId || t._id.slice(-8)} — ${amountStr}</h4>
+                <span class="badge badge-${t.status}">${t.status.replace(/_/g, ' ')}</span>
+              </div>
+              <p>Preferred Method: <strong class="badge badge-info">${t.preferredPaymentMethod.toUpperCase()}</strong> | Requested: ${dateStr}</p>
+              ${vendorAccountsHtml ? `<div style="margin: 0.25rem 0;">${vendorAccountsHtml}</div>` : ''}
+              ${t.notes ? `<p><em>Note: ${t.notes}</em></p>` : ''}
+              ${destInfoHtml}
+            </div>
+            ${actionBtnHtml ? `<div class="item-actions">${actionBtnHtml}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    } else {
+      cachedTopUps = [];
+      listEl.innerHTML = '<p class="empty-state">No top-up requests found. Create a new request above.</p>';
+    }
+  } catch (err) {
+    console.error('fetchVendorTopUps error:', err);
+  }
+}
+
+function openPaymentProofModal(topUpId) {
+  const topUp = cachedTopUps.find(t => t._id === topUpId);
+  if (!topUp) return;
+
+  document.getElementById('proofTopUpId').value = topUp._id;
+  document.getElementById('proofAmountPaid').value = topUp.requestedAmount;
+  document.getElementById('proofTransactionId').value = '';
+  document.getElementById('proofFile').value = '';
+  document.getElementById('proofNote').value = '';
+
+  const dest = topUp.paymentDestination;
+  const destHtml = dest
+    ? `<strong>Company Destination:</strong> ${dest.destinationType === 'bank' ? `${dest.bankName} (${dest.accountNumber})` : `${dest.walletName} (${dest.walletId})`}<br><strong>Amount to Transfer:</strong> ₹${topUp.requestedAmount.toLocaleString('en-IN')}`
+    : `<strong>Amount to Transfer:</strong> ₹${topUp.requestedAmount.toLocaleString('en-IN')}`;
+
+  document.getElementById('modalTopUpDetails').innerHTML = destHtml;
+  document.getElementById('paymentProofModal').classList.remove('hidden');
+}
+
+function closePaymentProofModal() {
+  document.getElementById('paymentProofModal').classList.add('hidden');
+}
+
+async function handleSubmitPaymentProof(event) {
+  event.preventDefault();
+
+  const topUpId = document.getElementById('proofTopUpId').value;
+  const amountPaid = document.getElementById('proofAmountPaid').value;
+  const transactionId = document.getElementById('proofTransactionId').value.trim();
+  const proofFile = document.getElementById('proofFile').files[0];
+  const note = document.getElementById('proofNote').value.trim();
+
+  if (!proofFile) {
+    showToast('Please upload payment screenshot / proof', 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('amountPaid', amountPaid);
+  formData.append('transactionId', transactionId);
+  formData.append('paymentProof', proofFile);
+  if (note) formData.append('note', note);
+
+  const submitBtn = document.getElementById('btnSubmitProof');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Uploading to Cloudinary...';
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/topups/${topUpId}/confirm-payment`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${currentToken}` },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Payment proof submitted successfully! SuperAdmin will verify.', 'success');
+      closePaymentProofModal();
+      fetchVendorTopUps();
+    } else {
+      showToast(data.message || 'Failed to submit payment confirmation', 'error');
+    }
+  } catch (err) {
+    showToast('Error uploading payment confirmation', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit Payment Proof';
+  }
+}
+
+/**
+ * 9. Bank Accounts CRUD
  */
 async function fetchBankAccounts() {
+  if (!currentToken) return;
+
   try {
     const res = await fetch(`${API_BASE}/vendors/bank-accounts`, {
       headers: { 'Authorization': `Bearer ${currentToken}` }
@@ -339,6 +643,7 @@ async function fetchBankAccounts() {
       cachedBankAccounts = [];
       listEl.innerHTML = '<p class="empty-state">No bank accounts added yet.</p>';
     }
+    populateTopupBankAndWalletOptions();
   } catch (err) {
     console.error('fetchBankAccounts error:', err);
   }
@@ -468,9 +773,11 @@ async function deleteBankAccount(id) {
 }
 
 /**
- * 8. Wallets CRUD
+ * 10. Wallets CRUD
  */
 async function fetchWallets() {
+  if (!currentToken) return;
+
   try {
     const res = await fetch(`${API_BASE}/vendors/wallets`, {
       headers: { 'Authorization': `Bearer ${currentToken}` }
@@ -501,6 +808,7 @@ async function fetchWallets() {
       cachedWallets = [];
       listEl.innerHTML = '<p class="empty-state">No wallets added yet.</p>';
     }
+    populateTopupBankAndWalletOptions();
   } catch (err) {
     console.error('fetchWallets error:', err);
   }
@@ -624,94 +932,7 @@ async function deleteWallet(id) {
 }
 
 /**
- * 9. SuperAdmin Simulator
- */
-async function fetchAdminVendors() {
-  // For quick local testing: Create a test admin token
-  const testAdminToken = currentToken; 
-  try {
-    const res = await fetch(`${API_BASE}/admin/vendors`, {
-      headers: { 'Authorization': `Bearer ${testAdminToken}` }
-    });
-    const data = await res.json();
-    const listEl = document.getElementById('adminVendorsList');
-
-    if (data.success && data.data?.vendors?.length > 0) {
-      listEl.innerHTML = data.data.vendors.map(v => `
-        <div class="item-card">
-          <div class="item-info">
-            <h4>${v.firstName} ${v.lastName} (${v.email})</h4>
-            <p>Mobile: ${v.mobileNumber} | Status: <strong class="badge badge-${v.verificationStatus}">${v.verificationStatus}</strong> | Active: ${v.isActive ? 'Yes' : 'No'}</p>
-          </div>
-          <div class="item-actions">
-            <button class="btn btn-sm btn-success" onclick="adminApproveVendor('${v._id}')">Approve</button>
-            <button class="btn btn-sm btn-danger" onclick="adminRejectVendor('${v._id}')">Reject</button>
-            <button class="btn btn-sm btn-secondary" onclick="adminToggleActive('${v._id}', ${!v.isActive})">${v.isActive ? 'Deactivate' : 'Activate'}</button>
-          </div>
-        </div>
-      `).join('');
-    } else {
-      listEl.innerHTML = `<p class="empty-state">${data.message || 'No vendors found or admin permission required.'}</p>`;
-    }
-  } catch (err) {
-    showToast('Error connecting to admin endpoint', 'error');
-  }
-}
-
-async function adminApproveVendor(id) {
-  try {
-    const res = await fetch(`${API_BASE}/admin/vendors/${id}/approve`, {
-      method: 'PATCH',
-      headers: { 'Authorization': `Bearer ${currentToken}` }
-    });
-    const data = await res.json();
-    showToast(data.message || 'Vendor approved', data.success ? 'success' : 'error');
-    fetchAdminVendors();
-    loadVendorProfile();
-  } catch (err) {
-    showToast('Admin action failed', 'error');
-  }
-}
-
-async function adminRejectVendor(id) {
-  const reason = prompt('Please enter rejection reason:');
-  if (!reason) return;
-  try {
-    const res = await fetch(`${API_BASE}/admin/vendors/${id}/reject`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${currentToken}`
-      },
-      body: JSON.stringify({ rejectionReason: reason })
-    });
-    const data = await res.json();
-    showToast(data.message || 'Vendor rejected', data.success ? 'success' : 'error');
-    fetchAdminVendors();
-    loadVendorProfile();
-  } catch (err) {
-    showToast('Admin action failed', 'error');
-  }
-}
-
-async function adminToggleActive(id, activate) {
-  try {
-    const action = activate ? 'activate' : 'deactivate';
-    const res = await fetch(`${API_BASE}/admin/vendors/${id}/${action}`, {
-      method: 'PATCH',
-      headers: { 'Authorization': `Bearer ${currentToken}` }
-    });
-    const data = await res.json();
-    showToast(data.message || `Vendor ${action}d`, data.success ? 'success' : 'error');
-    fetchAdminVendors();
-    loadVendorProfile();
-  } catch (err) {
-    showToast('Admin action failed', 'error');
-  }
-}
-
-/**
- * 10. Logout
+ * 11. Logout
  */
 function logout() {
   currentToken = null;
