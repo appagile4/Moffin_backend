@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moffin 2 - Vendor Payment Portal</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">Moffin 2</span>
+        <span class="badge" id="serverStatusBadge">Checking server...</span>
+      </div>
+      <div class="nav-actions" id="navAuthActions">
+        <span id="userGreeting" class="user-greeting"></span>
+        <button id="logoutBtn" class="btn btn-secondary hidden" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Main Container -->
+  <main class="main-container">
+    
+    <!-- AUTH SECTION (When not logged in) -->
+    <div id="authSection" class="card-grid">
+      
+      <!-- Login Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🔐 Vendor Login</h2>
+          <p class="subtitle">Access your vendor dashboard</p>
+        </div>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label>Email Address *</label>
+            <input type="email" id="loginEmail" required placeholder="vendor@example.com">
+          </div>
+          <div class="form-group">
+            <label>Password *</label>
+            <input type="password" id="loginPassword" required placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn btn-primary w-full">Sign In</button>
+        </form>
+      </div>
+
+      <!-- Registration Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>📝 Vendor Registration</h2>
+          <p class="subtitle">Create a new vendor account</p>
+        </div>
+        <form id="registerForm" onsubmit="handleRegister(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label>First Name *</label>
+              <input type="text" id="regFirstName" required placeholder="John">
+            </div>
+            <div class="form-group">
+              <label>Last Name *</label>
+              <input type="text" id="regLastName" required placeholder="Doe">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Email *</label>
+              <input type="email" id="regEmail" required placeholder="john.doe@example.com">
+            </div>
+            <div class="form-group">
+              <label>Password *</label>
+              <input type="password" id="regPassword" required placeholder="Min 6 chars">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Mobile Number *</label>
+              <input type="text" id="regMobile" required placeholder="+91 9876543210">
+            </div>
+            <div class="form-group">
+              <label>WhatsApp Number</label>
+              <input type="text" id="regWhatsapp" placeholder="+91 9876543210">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Telegram ID</label>
+              <input type="text" id="regTelegram" placeholder="@john_vendor">
+            </div>
+            <div class="form-group">
+              <label>Profile Photo (Cloudinary)</label>
+              <input type="file" id="regProfilePhoto" accept="image/jpeg,image/png,image/webp">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-success w-full">Register Vendor</button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- VENDOR DASHBOARD (When logged in) -->
+    <div id="dashboardSection" class="hidden">
+      
+      <!-- Top Overview Bar -->
+      <div class="overview-bar card">
+        <div class="overview-profile">
+          <div class="avatar-container">
+            <img id="dashAvatarImg" class="avatar-img hidden" alt="Profile">
+            <div class="avatar" id="dashAvatarText">V</div>
+          </div>
+          <div>
+            <h2 id="dashVendorName">Vendor Name</h2>
+            <p id="dashVendorEmail" class="text-muted">email@example.com</p>
+          </div>
+        </div>
+        <div class="overview-status">
+          <div class="status-item">
+            <span class="label">Status</span>
+            <span id="dashStatusBadge" class="badge">Pending</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Account</span>
+            <span id="dashActiveBadge" class="badge">Active</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs Navigation -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('banksTab')">🏦 Bank Accounts</button>
+        <button class="tab-btn" onclick="switchTab('walletsTab')">👛 Wallets & UPI</button>
+        <button class="tab-btn" onclick="switchTab('profileTab')">👤 Personal Profile</button>
+        <a href="/admin" class="tab-btn" style="text-decoration: none;" target="_blank">🛡️ SuperAdmin Portal ↗</a>
+      </div>
+
+      <!-- TAB 1: BANK ACCOUNTS -->
+      <div id="banksTab" class="tab-content">
+        <div class="grid-2">
+          
+          <!-- Bank Accounts List -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <h3>Linked Bank Accounts</h3>
+              <button class="btn btn-sm btn-secondary" onclick="fetchBankAccounts()">🔄 Refresh</button>
+            </div>
+            <div id="banksList" class="items-list">
+              <p class="empty-state">No bank accounts added yet.</p>
+            </div>
+          </div>
+
+          <!-- Add Bank Form -->
+          <div class="card">
+            <div class="card-header">
+              <h3>➕ Add Bank Account</h3>
+              <p class="subtitle">Add a verified bank account for payouts</p>
+            </div>
+            <form id="addBankForm" onsubmit="handleAddBankAccount(event)">
+              <div class="form-group">
+                <label>Bank Name *</label>
+                <input type="text" id="bankName" required placeholder="e.g. HDFC Bank">
+              </div>
+              <div class="form-group">
+                <label>Account Number *</label>
+                <input type="text" id="bankAccountNumber" required placeholder="e.g. 5010023456789">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>IFSC Code *</label>
+                  <input type="text" id="bankIfsc" required placeholder="HDFC0001234">
+                </div>
+                <div class="form-group">
+                  <label>Branch Name *</label>
+                  <input type="text" id="bankBranch" required placeholder="e.g. Connaught Place">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Account Holder Name *</label>
+                <input type="text" id="bankHolderName" required placeholder="e.g. John Doe">
+              </div>
+              <div class="form-check">
+                <input type="checkbox" id="bankIsDefault">
+                <label for="bankIsDefault">Set as primary / default bank account</label>
+              </div>
+              <button type="submit" class="btn btn-primary w-full">Save Bank Account</button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB 2: WALLETS -->
+      <div id="walletsTab" class="tab-content hidden">
+        <div class="grid-2">
+          
+          <!-- Wallets List -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <h3>Linked Wallets & UPI</h3>
+              <button class="btn btn-sm btn-secondary" onclick="fetchWallets()">🔄 Refresh</button>
+            </div>
+            <div id="walletsList" class="items-list">
+              <p class="empty-state">No wallets added yet.</p>
+            </div>
+          </div>
+
+          <!-- Add Wallet Form -->
+          <div class="card">
+            <div class="card-header">
+              <h3>➕ Add Wallet / UPI ID</h3>
+              <p class="subtitle">Add UPI address or payment wallet</p>
+            </div>
+            <form id="addWalletForm" onsubmit="handleAddWallet(event)">
+              <div class="form-group">
+                <label>Wallet Name *</label>
+                <input type="text" id="walletName" required placeholder="e.g. GooglePay UPI / Paytm">
+              </div>
+              <div class="form-group">
+                <label>Wallet ID / VPA Address *</label>
+                <input type="text" id="walletId" required placeholder="e.g. johndoe@okhdfcbank">
+              </div>
+              <div class="form-group">
+                <label>QR Code Image URL (Optional)</label>
+                <input type="url" id="walletQr" placeholder="https://example.com/qr.png">
+              </div>
+              <div class="form-check">
+                <input type="checkbox" id="walletIsDefault">
+                <label for="walletIsDefault">Set as primary / default wallet</label>
+              </div>
+              <button type="submit" class="btn btn-primary w-full">Save Wallet</button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB 3: PERSONAL PROFILE -->
+      <div id="profileTab" class="tab-content hidden">
+        <div class="grid-2">
+          
+          <!-- Edit Profile -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Edit Personal Information</h3>
+            </div>
+            <form id="updateProfileForm" onsubmit="handleUpdateProfile(event)">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>First Name</label>
+                  <input type="text" id="profFirstName">
+                </div>
+                <div class="form-group">
+                  <label>Last Name</label>
+                  <input type="text" id="profLastName">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Mobile Number</label>
+                <input type="text" id="profMobile">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>WhatsApp Number</label>
+                  <input type="text" id="profWhatsapp">
+                </div>
+                <div class="form-group">
+                  <label>Telegram ID</label>
+                  <input type="text" id="profTelegram">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Change Profile Photo (Upload to Cloudinary)</label>
+                <input type="file" id="profPhotoFile" accept="image/jpeg,image/png,image/webp">
+                <p class="subtitle" id="profPhotoUrlText" style="font-size: 0.75rem; word-break: break-all; margin-top: 0.25rem;"></p>
+              </div>
+              <button type="submit" class="btn btn-primary">Update Profile</button>
+            </form>
+          </div>
+
+          <!-- Change Password -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Change Password</h3>
+            </div>
+            <form id="changePasswordForm" onsubmit="handleChangePassword(event)">
+              <div class="form-group">
+                <label>Current Password *</label>
+                <input type="password" id="currPassword" required placeholder="••••••••">
+              </div>
+              <div class="form-group">
+                <label>New Password *</label>
+                <input type="password" id="newPassword" required placeholder="Min 6 chars">
+              </div>
+              <button type="submit" class="btn btn-warning">Update Password</button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Edit Bank Account Modal -->
+  <div id="editBankModal" class="modal-backdrop hidden">
+    <div class="modal-card card">
+      <div class="card-header flex-between">
+        <h3>✏️ Edit Bank Account</h3>
+        <button type="button" class="btn-close" onclick="closeEditBankModal()">✕</button>
+      </div>
+      <form id="editBankForm" onsubmit="handleUpdateBankAccount(event)">
+        <input type="hidden" id="editBankId">
+        <div class="form-group">
+          <label>Bank Name *</label>
+          <input type="text" id="editBankName" required>
+        </div>
+        <div class="form-group">
+          <label>Account Number *</label>
+          <input type="text" id="editBankAccountNumber" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>IFSC Code *</label>
+            <input type="text" id="editBankIfsc" required>
+          </div>
+          <div class="form-group">
+            <label>Branch Name *</label>
+            <input type="text" id="editBankBranch" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Account Holder Name *</label>
+          <input type="text" id="editBankHolderName" required>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="editBankIsDefault">
+          <label for="editBankIsDefault">Set as primary / default bank account</label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditBankModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Wallet Modal -->
+  <div id="editWalletModal" class="modal-backdrop hidden">
+    <div class="modal-card card">
+      <div class="card-header flex-between">
+        <h3>✏️ Edit Wallet</h3>
+        <button type="button" class="btn-close" onclick="closeEditWalletModal()">✕</button>
+      </div>
+      <form id="editWalletForm" onsubmit="handleUpdateWallet(event)">
+        <input type="hidden" id="editWalletSubId">
+        <div class="form-group">
+          <label>Wallet Name *</label>
+          <input type="text" id="editWalletName" required>
+        </div>
+        <div class="form-group">
+          <label>Wallet ID / VPA Address *</label>
+          <input type="text" id="editWalletId" required>
+        </div>
+        <div class="form-group">
+          <label>QR Code Image URL (Optional)</label>
+          <input type="url" id="editWalletQr">
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="editWalletIsDefault">
+          <label for="editWalletIsDefault">Set as primary / default wallet</label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditWalletModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
