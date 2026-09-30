@@ -23,11 +23,24 @@ const sendError = (res, statusCode, message) => {
 const createTopUp = async (req, res) => {
   try {
     const vendorId = req.user.id || req.user._id;
-    const { requestedAmount, preferredPaymentMethod } = req.body;
+    const {
+      requestedAmount,
+      preferredPaymentMethod,
+      selectedBankAccountId,
+      selectedBankAccountIds,
+      selectedWalletId,
+      selectedWalletIds,
+      notes
+    } = req.body;
 
     const topUp = await topUpService.createTopUpRequest(vendorId, {
       requestedAmount,
-      preferredPaymentMethod
+      preferredPaymentMethod,
+      selectedBankAccountId,
+      selectedBankAccountIds,
+      selectedWalletId,
+      selectedWalletIds,
+      notes
     });
 
     return sendSuccess(res, 201, 'Top-up request created successfully', {
@@ -185,12 +198,25 @@ const adminRespondTopUp = async (req, res) => {
   try {
     const adminId = req.user.id || req.user._id;
     const topUpId = req.params.id;
-    const { selectedDestinationIds, approvedAmount, adminMessage } = req.body;
+    const {
+      selectedDestinationIds,
+      selectedDestinations,
+      paymentDestinationId,
+      destinationId,
+      destinationIds,
+      approvedAmount,
+      adminMessage,
+      adminNotes,
+      notes
+    } = req.body;
 
     const topUp = await topUpService.adminRespondTopUp(topUpId, adminId, {
-      selectedDestinationIds,
+      selectedDestinationIds: selectedDestinationIds || selectedDestinations,
+      paymentDestinationId,
+      destinationId,
+      destinationIds,
       approvedAmount,
-      adminMessage
+      adminMessage: adminMessage || adminNotes || notes
     });
 
     return sendSuccess(res, 200, 'Top-up request response submitted', {

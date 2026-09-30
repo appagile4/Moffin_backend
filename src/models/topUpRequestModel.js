@@ -31,22 +31,36 @@ const topUpRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null
     },
+    selectedBankAccountIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId
+      }
+    ],
     selectedWalletId: {
       type: mongoose.Schema.Types.ObjectId,
       default: null
     },
-    vendorBankDetails: {
-      bankName: { type: String, trim: true },
-      accountNumber: { type: String, trim: true },
-      ifscCode: { type: String, trim: true },
-      branchName: { type: String, trim: true },
-      accountHolderName: { type: String, trim: true }
-    },
-    vendorWalletDetails: {
-      walletName: { type: String, trim: true },
-      walletId: { type: String, trim: true },
-      qrCode: { type: String, trim: true }
-    },
+    selectedWalletIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId
+      }
+    ],
+    vendorBankDetails: [
+      {
+        bankName: { type: String, trim: true },
+        accountNumber: { type: String, trim: true },
+        ifscCode: { type: String, trim: true },
+        branchName: { type: String, trim: true },
+        accountHolderName: { type: String, trim: true }
+      }
+    ],
+    vendorWalletDetails: [
+      {
+        walletName: { type: String, trim: true },
+        walletId: { type: String, trim: true },
+        qrCode: { type: String, trim: true }
+      }
+    ],
     notes: {
       type: String,
       trim: true,

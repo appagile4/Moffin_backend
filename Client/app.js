@@ -391,30 +391,32 @@ function handleTopupMethodChange() {
 }
 
 function populateTopupBankAndWalletOptions() {
-  const bankSelect = document.getElementById('topupSelectedBank');
-  const walletSelect = document.getElementById('topupSelectedWallet');
+  const bankContainer = document.getElementById('topupBankCheckboxes');
+  const walletContainer = document.getElementById('topupWalletCheckboxes');
 
-  if (bankSelect) {
+  if (bankContainer) {
     if (cachedBankAccounts.length > 0) {
-      bankSelect.innerHTML = '<option value="">-- Select a Bank Account --</option>' + cachedBankAccounts.map(b => `
-        <option value="${b._id}" ${b.isDefault ? 'selected' : ''}>
-          ${b.bankName} - ${b.accountNumber} (${b.accountHolderName}) ${b.isDefault ? '[Default]' : ''}
-        </option>
+      bankContainer.innerHTML = cachedBankAccounts.map(b => `
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer; margin-bottom: 0.35rem;">
+          <input type="checkbox" name="topupBankCheckbox" value="${b._id}" ${b.isDefault ? 'checked' : ''}>
+          <span><strong>${b.bankName}</strong> - ${b.accountNumber} (${b.accountHolderName}) ${b.isDefault ? '<span class="badge badge-default">Default</span>' : ''}</span>
+        </label>
       `).join('');
     } else {
-      bankSelect.innerHTML = '<option value="">(No bank accounts linked yet)</option>';
+      bankContainer.innerHTML = '<p class="text-muted" style="font-size: 0.85rem;">(No bank accounts linked yet)</p>';
     }
   }
 
-  if (walletSelect) {
+  if (walletContainer) {
     if (cachedWallets.length > 0) {
-      walletSelect.innerHTML = '<option value="">-- Select a Wallet / UPI --</option>' + cachedWallets.map(w => `
-        <option value="${w._id}" ${w.isDefault ? 'selected' : ''}>
-          ${w.walletName} - ${w.walletId} ${w.isDefault ? '[Default]' : ''}
-        </option>
+      walletContainer.innerHTML = cachedWallets.map(w => `
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer; margin-bottom: 0.35rem;">
+          <input type="checkbox" name="topupWalletCheckbox" value="${w._id}" ${w.isDefault ? 'checked' : ''}>
+          <span><strong>${w.walletName}</strong> - ${w.walletId} ${w.isDefault ? '<span class="badge badge-default">Default</span>' : ''}</span>
+        </label>
       `).join('');
     } else {
-      walletSelect.innerHTML = '<option value="">(No wallets linked yet)</option>';
+      walletContainer.innerHTML = '<p class="text-muted" style="font-size: 0.85rem;">(No wallets linked yet)</p>';
     }
   }
 }
@@ -423,14 +425,14 @@ async function handleCreateTopUp(event) {
   event.preventDefault();
 
   const method = document.getElementById('topupMethod').value;
-  const selectedBank = document.getElementById('topupSelectedBank')?.value || undefined;
-  const selectedWallet = document.getElementById('topupSelectedWallet')?.value || undefined;
+  const selectedBankAccountIds = Array.from(document.querySelectorAll('input[name="topupBankCheckbox"]:checked')).map(cb => cb.value);
+  const selectedWalletIds = Array.from(document.querySelectorAll('input[name="topupWalletCheckbox"]:checked')).map(cb => cb.value);
 
   const payload = {
     requestedAmount: Number(document.getElementById('topupAmount').value),
     preferredPaymentMethod: method,
-    selectedBankAccountId: ['bank', 'both'].includes(method) ? selectedBank : undefined,
-    selectedWalletId: ['wallet', 'both'].includes(method) ? selectedWallet : undefined,
+    selectedBankAccountIds: ['bank', 'both'].includes(method) ? selectedBankAccountIds : undefined,
+    selectedWalletIds: ['wallet', 'both'].includes(method) ? selectedWalletIds : undefined,
     notes: document.getElementById('topupNote').value.trim() || undefined
   };
 
@@ -446,7 +448,7 @@ async function handleCreateTopUp(event) {
 
     const data = await res.json();
     if (data.success) {
-      showToast('Top-Up request submitted! SuperAdmin will assign payment destination.', 'success');
+      showToast('Top-Up request submitted! SuperAdmin will assign payment destinations.', 'success');
       document.getElementById('createTopUpForm').reset();
       handleTopupMethodChange();
       populateTopupBankAndWalletOptions();
@@ -474,23 +476,35 @@ async function fetchVendorTopUps() {
       listEl.innerHTML = data.data.topUps.map(t => {
         const dateStr = new Date(t.createdAt).toLocaleString('en-IN');
         const amountStr = `₹${(t.requestedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-        const dest = t.paymentDestination;
+        const assignedDests = t.adminResponse?.selectedDestinations || (t.paymentDestination ? [t.paymentDestination] : []);
 
         let destInfoHtml = '';
         let actionBtnHtml = '';
 
         if (t.status === 'PENDING_ADMIN_RESPONSE') {
-          destInfoHtml = `<p style="color: #92400e;">⏳ Waiting for SuperAdmin to provide payment destination details...</p>`;
+          destInfoHtml = `<p style="color: #92400e;">⏳ Waiting for SuperAdmin to review and assign company payment destinations...</p>`;
         } else if (t.status === 'AWAITING_PAYMENT') {
-          if (dest) {
+          if (assignedDests.length > 0) {
+            const destCards = assignedDests.map(dest => {
+              if (!dest) return '';
+              const isBank = dest.type === 'bank' || dest.destinationType === 'bank';
+              return `
+                <div style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.65rem; margin-top: 0.35rem;">
+                  <strong>${isBank ? '🏦 Bank Account' : '👛 UPI / Wallet'}:</strong> ${dest.name || (isBank ? dest.bankName : dest.walletName)}<br>
+                  ${isBank 
+                    ? `Bank: <strong>${dest.bankName}</strong> | A/C: <strong>${dest.accountNumber}</strong> | IFSC: <strong>${dest.ifscCode}</strong> | Holder: ${dest.accountHolderName}`
+                    : `UPI ID: <strong>${dest.walletId}</strong>`
+                  }
+                  ${dest.instructions ? `<br><small class="text-muted">Instructions: ${dest.instructions}</small>` : ''}
+                </div>
+              `;
+            }).join('');
+
             destInfoHtml = `
               <div class="info-box mt-2" style="background: #f0fdf4; border-color: #bbf7d0; color: #166534;">
-                <strong>💳 Company Payment Destination Assigned:</strong><br>
-                ${dest.destinationType === 'bank' 
-                  ? `Bank: <strong>${dest.bankName}</strong> | A/C: <strong>${dest.accountNumber}</strong> | IFSC: <strong>${dest.ifscCode}</strong> | Holder: ${dest.accountHolderName}`
-                  : `Wallet: <strong>${dest.walletName}</strong> | UPI ID: <strong>${dest.walletId}</strong>`
-                }
-                ${dest.instructions ? `<br><em>Note: ${dest.instructions}</em>` : ''}
+                <strong>💳 Company Payment Destination(s) Assigned (${assignedDests.length}):</strong><br>
+                ${destCards}
+                ${t.adminResponse?.adminMessage ? `<p style="margin-top: 0.35rem;"><strong>Admin Note:</strong> <em>${t.adminResponse.adminMessage}</em></p>` : ''}
               </div>
             `;
           }
@@ -503,12 +517,17 @@ async function fetchVendorTopUps() {
           destInfoHtml = `<p style="color: #dc2626;">❌ Rejected ${t.rejectionReason ? `(Reason: ${t.rejectionReason})` : ''}</p>`;
         }
 
-        // Display vendor's selected bank/wallet
+        // Display vendor's selected banks/wallets
         let vendorAccountsHtml = '';
-        if (t.vendorBankDetails && ['bank', 'both'].includes(t.preferredPaymentMethod)) {
+        if (Array.isArray(t.vendorBankDetails) && t.vendorBankDetails.length > 0) {
+          vendorAccountsHtml += `<small class="text-muted">🏦 Your Linked Banks: ` + t.vendorBankDetails.map(b => `<strong>${b.bankName}</strong> (${b.accountNumber})`).join(', ') + `</small><br>`;
+        } else if (t.vendorBankDetails?.bankName) {
           vendorAccountsHtml += `<small class="text-muted">🏦 Your Bank: <strong>${t.vendorBankDetails.bankName}</strong> (${t.vendorBankDetails.accountNumber})</small><br>`;
         }
-        if (t.vendorWalletDetails && ['wallet', 'both'].includes(t.preferredPaymentMethod)) {
+
+        if (Array.isArray(t.vendorWalletDetails) && t.vendorWalletDetails.length > 0) {
+          vendorAccountsHtml += `<small class="text-muted">👛 Your Linked Wallets: ` + t.vendorWalletDetails.map(w => `<strong>${w.walletName}</strong> (${w.walletId})`).join(', ') + `</small><br>`;
+        } else if (t.vendorWalletDetails?.walletName) {
           vendorAccountsHtml += `<small class="text-muted">👛 Your Wallet: <strong>${t.vendorWalletDetails.walletName}</strong> (${t.vendorWalletDetails.walletId})</small><br>`;
         }
 
@@ -542,17 +561,31 @@ function openPaymentProofModal(topUpId) {
   if (!topUp) return;
 
   document.getElementById('proofTopUpId').value = topUp._id;
-  document.getElementById('proofAmountPaid').value = topUp.requestedAmount;
+  document.getElementById('proofAmountPaid').value = topUp.adminResponse?.approvedAmount || topUp.requestedAmount;
   document.getElementById('proofTransactionId').value = '';
   document.getElementById('proofFile').value = '';
   document.getElementById('proofNote').value = '';
 
-  const dest = topUp.paymentDestination;
-  const destHtml = dest
-    ? `<strong>Company Destination:</strong> ${dest.destinationType === 'bank' ? `${dest.bankName} (${dest.accountNumber})` : `${dest.walletName} (${dest.walletId})`}<br><strong>Amount to Transfer:</strong> ₹${topUp.requestedAmount.toLocaleString('en-IN')}`
+  const assignedDests = topUp.adminResponse?.selectedDestinations || (topUp.paymentDestination ? [topUp.paymentDestination] : []);
+  const destSelect = document.getElementById('proofSelectedDestId');
+
+  if (assignedDests.length > 0) {
+    destSelect.innerHTML = assignedDests.map((dest, idx) => {
+      const isBank = dest.type === 'bank' || dest.destinationType === 'bank';
+      const label = isBank
+        ? `[BANK] ${dest.name || dest.bankName} - A/C: ${dest.accountNumber} (${dest.ifscCode})`
+        : `[UPI/WALLET] ${dest.name || dest.walletName} - ${dest.walletId}`;
+      return `<option value="${dest._id}" ${idx === 0 ? 'selected' : ''}>${label}</option>`;
+    }).join('');
+  } else {
+    destSelect.innerHTML = '<option value="">(No destination found)</option>';
+  }
+
+  const destSummary = assignedDests.length > 0
+    ? `<strong>Available Assigned Destinations:</strong> ${assignedDests.length} option(s)<br><strong>Approved Amount:</strong> ₹${(topUp.adminResponse?.approvedAmount || topUp.requestedAmount).toLocaleString('en-IN')}`
     : `<strong>Amount to Transfer:</strong> ₹${topUp.requestedAmount.toLocaleString('en-IN')}`;
 
-  document.getElementById('modalTopUpDetails').innerHTML = destHtml;
+  document.getElementById('modalTopUpDetails').innerHTML = destSummary;
   document.getElementById('paymentProofModal').classList.remove('hidden');
 }
 
@@ -564,10 +597,16 @@ async function handleSubmitPaymentProof(event) {
   event.preventDefault();
 
   const topUpId = document.getElementById('proofTopUpId').value;
+  const paymentDestinationId = document.getElementById('proofSelectedDestId').value;
   const amountPaid = document.getElementById('proofAmountPaid').value;
   const transactionId = document.getElementById('proofTransactionId').value.trim();
   const proofFile = document.getElementById('proofFile').files[0];
   const note = document.getElementById('proofNote').value.trim();
+
+  if (!paymentDestinationId) {
+    showToast('Please select the destination you transferred to', 'error');
+    return;
+  }
 
   if (!proofFile) {
     showToast('Please upload payment screenshot / proof', 'error');
@@ -576,6 +615,7 @@ async function handleSubmitPaymentProof(event) {
 
   const formData = new FormData();
   formData.append('amountPaid', amountPaid);
+  formData.append('paymentDestinationId', paymentDestinationId);
   formData.append('transactionId', transactionId);
   formData.append('paymentProof', proofFile);
   if (note) formData.append('note', note);

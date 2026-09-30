@@ -223,20 +223,20 @@
                 </select>
               </div>
 
-              <!-- Select from linked Bank Accounts -->
+              <!-- Select from linked Bank Accounts (Multi-select) -->
               <div id="topupBankSelectGroup" class="form-group">
-                <label>Select From Your Linked Bank Accounts</label>
-                <select id="topupSelectedBank">
-                  <option value="">-- Select a Bank Account --</option>
-                </select>
+                <label>Select From Your Linked Bank Accounts (Select one or multiple)</label>
+                <div id="topupBankCheckboxes" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 160px; overflow-y: auto; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: #fafafa;">
+                  <p class="text-muted" style="font-size: 0.85rem;">(No bank accounts linked yet)</p>
+                </div>
               </div>
 
-              <!-- Select from linked Wallets -->
+              <!-- Select from linked Wallets (Multi-select) -->
               <div id="topupWalletSelectGroup" class="form-group hidden">
-                <label>Select From Your Linked Wallets / UPI</label>
-                <select id="topupSelectedWallet">
-                  <option value="">-- Select a Wallet / UPI --</option>
-                </select>
+                <label>Select From Your Linked Wallets / UPI (Select one or multiple)</label>
+                <div id="topupWalletCheckboxes" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 160px; overflow-y: auto; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: #fafafa;">
+                  <p class="text-muted" style="font-size: 0.85rem;">(No wallets linked yet)</p>
+                </div>
               </div>
 
               <div class="form-group">
@@ -459,6 +459,12 @@
 
       <form id="paymentProofForm" onsubmit="handleSubmitPaymentProof(event)">
         <input type="hidden" id="proofTopUpId">
+        <div class="form-group" id="proofDestSelectGroup">
+          <label>Company Destination Paid To *</label>
+          <select id="proofSelectedDestId" required>
+            <option value="">-- Select Destination Paid To --</option>
+          </select>
+        </div>
         <div class="form-group">
           <label>Amount Transferred (₹) *</label>
           <input type="number" id="proofAmountPaid" required step="any">

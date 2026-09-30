@@ -51,6 +51,27 @@ const paymentDestinationSchema = new mongoose.Schema(
       trim: true,
       default: null
     },
+    minAmount: {
+      type: Number,
+      default: 100
+    },
+    maxAmount: {
+      type: Number,
+      default: 5000000
+    },
+    dailyLimit: {
+      type: Number,
+      default: 10000000
+    },
+    todayCollected: {
+      type: Number,
+      default: 0
+    },
+    instructions: {
+      type: String,
+      trim: true,
+      default: null
+    },
     isActive: {
       type: Boolean,
       default: true,

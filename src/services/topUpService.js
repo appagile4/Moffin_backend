@@ -22,7 +22,15 @@ const generateId = (prefix = 'TOP') => {
  */
 const createTopUpRequest = async (
   vendorId,
-  { requestedAmount, preferredPaymentMethod = 'bank', selectedBankAccountId, selectedWalletId, notes }
+  {
+    requestedAmount,
+    preferredPaymentMethod = 'bank',
+    selectedBankAccountId,
+    selectedBankAccountIds,
+    selectedWalletId,
+    selectedWalletIds,
+    notes
+  }
 ) => {
   const numAmount = Number(requestedAmount);
   if (!numAmount || numAmount <= 0) {
@@ -40,52 +48,71 @@ const createTopUpRequest = async (
     throw new Error('Vendor account is inactive or not found');
   }
 
-  let vendorBankDetails = null;
-  let vendorWalletDetails = null;
+  // Normalize bank account IDs
+  let bankIds = [];
+  if (Array.isArray(selectedBankAccountIds) && selectedBankAccountIds.length > 0) {
+    bankIds = selectedBankAccountIds.filter(Boolean);
+  } else if (selectedBankAccountId) {
+    bankIds = [selectedBankAccountId];
+  }
 
-  // If vendor selected a bank account (or preferred method includes bank)
-  if (selectedBankAccountId && vendor.bankAccounts?.length > 0) {
-    const matchedBank = vendor.bankAccounts.id(selectedBankAccountId) || vendor.bankAccounts.find(b => b._id.toString() === selectedBankAccountId.toString());
-    if (matchedBank) {
-      vendorBankDetails = {
-        bankName: matchedBank.bankName,
-        accountNumber: matchedBank.accountNumber,
-        ifscCode: matchedBank.ifscCode,
-        branchName: matchedBank.branchName,
-        accountHolderName: matchedBank.accountHolderName
-      };
-    }
-  } else if (['bank', 'both'].includes(preferredPaymentMethod) && vendor.bankAccounts?.length > 0) {
-    const defaultBank = vendor.bankAccounts.find(b => b.isDefault) || vendor.bankAccounts[0];
-    if (defaultBank) {
-      vendorBankDetails = {
-        bankName: defaultBank.bankName,
-        accountNumber: defaultBank.accountNumber,
-        ifscCode: defaultBank.ifscCode,
-        branchName: defaultBank.branchName,
-        accountHolderName: defaultBank.accountHolderName
-      };
+  // Normalize wallet IDs
+  let walletIds = [];
+  if (Array.isArray(selectedWalletIds) && selectedWalletIds.length > 0) {
+    walletIds = selectedWalletIds.filter(Boolean);
+  } else if (selectedWalletId) {
+    walletIds = [selectedWalletId];
+  }
+
+  const vendorBankDetails = [];
+  if (vendor.bankAccounts?.length > 0) {
+    if (bankIds.length > 0) {
+      bankIds.forEach(id => {
+        const matched = vendor.bankAccounts.id(id) || vendor.bankAccounts.find(b => b._id.toString() === id.toString());
+        if (matched) {
+          vendorBankDetails.push({
+            bankName: matched.bankName,
+            accountNumber: matched.accountNumber,
+            ifscCode: matched.ifscCode,
+            branchName: matched.branchName,
+            accountHolderName: matched.accountHolderName
+          });
+        }
+      });
+    } else if (['bank', 'both'].includes(preferredPaymentMethod)) {
+      vendor.bankAccounts.forEach(b => {
+        vendorBankDetails.push({
+          bankName: b.bankName,
+          accountNumber: b.accountNumber,
+          ifscCode: b.ifscCode,
+          branchName: b.branchName,
+          accountHolderName: b.accountHolderName
+        });
+      });
     }
   }
 
-  // If vendor selected a wallet (or preferred method includes wallet)
-  if (selectedWalletId && vendor.wallets?.length > 0) {
-    const matchedWallet = vendor.wallets.id(selectedWalletId) || vendor.wallets.find(w => w._id.toString() === selectedWalletId.toString());
-    if (matchedWallet) {
-      vendorWalletDetails = {
-        walletName: matchedWallet.walletName,
-        walletId: matchedWallet.walletId,
-        qrCode: matchedWallet.qrCode
-      };
-    }
-  } else if (['wallet', 'both'].includes(preferredPaymentMethod) && vendor.wallets?.length > 0) {
-    const defaultWallet = vendor.wallets.find(w => w.isDefault) || vendor.wallets[0];
-    if (defaultWallet) {
-      vendorWalletDetails = {
-        walletName: defaultWallet.walletName,
-        walletId: defaultWallet.walletId,
-        qrCode: defaultWallet.qrCode
-      };
+  const vendorWalletDetails = [];
+  if (vendor.wallets?.length > 0) {
+    if (walletIds.length > 0) {
+      walletIds.forEach(id => {
+        const matched = vendor.wallets.id(id) || vendor.wallets.find(w => w._id.toString() === id.toString());
+        if (matched) {
+          vendorWalletDetails.push({
+            walletName: matched.walletName,
+            walletId: matched.walletId,
+            qrCode: matched.qrCode
+          });
+        }
+      });
+    } else if (['wallet', 'both'].includes(preferredPaymentMethod)) {
+      vendor.wallets.forEach(w => {
+        vendorWalletDetails.push({
+          walletName: w.walletName,
+          walletId: w.walletId,
+          qrCode: w.qrCode
+        });
+      });
     }
   }
 
@@ -96,10 +123,12 @@ const createTopUpRequest = async (
     vendorId,
     requestedAmount: numAmount,
     preferredPaymentMethod,
-    selectedBankAccountId: selectedBankAccountId || null,
-    selectedWalletId: selectedWalletId || null,
-    vendorBankDetails: vendorBankDetails || undefined,
-    vendorWalletDetails: vendorWalletDetails || undefined,
+    selectedBankAccountId: bankIds[0] || null,
+    selectedBankAccountIds: bankIds,
+    selectedWalletId: walletIds[0] || null,
+    selectedWalletIds: walletIds,
+    vendorBankDetails,
+    vendorWalletDetails,
     notes: notes ? notes.trim() : null,
     status: 'PENDING_ADMIN_RESPONSE'
   });
@@ -202,9 +231,21 @@ const getAllTopUpsAdmin = async ({ page = 1, limit = 20, status = null, search =
 };
 
 /**
- * 5. SuperAdmin responds with selected payment destinations
+ * 5. SuperAdmin responds with selected payment destinations (supports multiple banks & wallets)
  */
-const adminRespondTopUp = async (topUpId, adminId, { selectedDestinationIds, approvedAmount, adminMessage }) => {
+const adminRespondTopUp = async (
+  topUpId,
+  adminId,
+  {
+    selectedDestinationIds,
+    paymentDestinationId,
+    destinationId,
+    destinationIds,
+    approvedAmount,
+    adminMessage,
+    adminNotes
+  }
+) => {
   const topUp = await TopUpRequest.findById(topUpId);
   if (!topUp) {
     throw new Error('Top-up request not found');
@@ -214,26 +255,39 @@ const adminRespondTopUp = async (topUpId, adminId, { selectedDestinationIds, app
     throw new Error(`Cannot respond to top-up request with status "${topUp.status}"`);
   }
 
-  if (!selectedDestinationIds || !Array.isArray(selectedDestinationIds) || selectedDestinationIds.length === 0) {
+  // Normalize destination IDs from any format
+  let destIds = [];
+  if (Array.isArray(selectedDestinationIds) && selectedDestinationIds.length > 0) {
+    destIds = selectedDestinationIds.filter(Boolean);
+  } else if (Array.isArray(destinationIds) && destinationIds.length > 0) {
+    destIds = destinationIds.filter(Boolean);
+  } else if (paymentDestinationId) {
+    destIds = [paymentDestinationId];
+  } else if (destinationId) {
+    destIds = [destinationId];
+  }
+
+  if (destIds.length === 0) {
     throw new Error('Please select at least one company bank account or wallet destination');
   }
 
   // Validate destinations exist and are active
   const destinations = await PaymentDestination.find({
-    _id: { $in: selectedDestinationIds },
+    _id: { $in: destIds },
     isActive: true
   });
 
-  if (destinations.length !== selectedDestinationIds.length) {
+  if (destinations.length !== destIds.length) {
     throw new Error('One or more selected payment destinations are invalid or inactive');
   }
 
   const finalAmount = Number(approvedAmount) > 0 ? Number(approvedAmount) : topUp.requestedAmount;
+  const message = adminMessage || adminNotes || null;
 
   topUp.adminResponse = {
-    selectedDestinations: selectedDestinationIds,
+    selectedDestinations: destIds,
     approvedAmount: finalAmount,
-    adminMessage: adminMessage ? adminMessage.trim() : null,
+    adminMessage: message ? message.trim() : null,
     respondedBy: adminId,
     respondedAt: new Date()
   };
@@ -247,7 +301,7 @@ const adminRespondTopUp = async (topUpId, adminId, { selectedDestinationIds, app
     action: 'TOPUP_ADMIN_RESPONDED',
     targetType: 'TopUpRequest',
     targetId: topUp._id,
-    metadata: { topUpId: topUp.topUpId, selectedDestinationIds, approvedAmount: finalAmount }
+    metadata: { topUpId: topUp.topUpId, selectedDestinationIds: destIds, approvedAmount: finalAmount }
   });
 
   return await getTopUpById(topUp._id);

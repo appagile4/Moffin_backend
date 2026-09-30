@@ -127,7 +127,40 @@ async function runTests() {
     'Vendor creates top-up request with PENDING_ADMIN_RESPONSE status'
   );
 
-  // TEST 2: Vendor cannot access another vendor\'s request
+  // TEST 1B: Vendor can request 'both' bank and wallet with linked accounts
+  vendorA.bankAccounts = [{
+    bankName: 'ICICI Bank',
+    accountNumber: '1234567890',
+    ifscCode: 'ICIC0001234',
+    branchName: 'Andheri',
+    accountHolderName: 'Vendor Alpha',
+    isDefault: true
+  }];
+  vendorA.wallets = [{
+    walletName: 'GooglePay UPI',
+    walletId: 'alpha@upi',
+    isDefault: true
+  }];
+  await vendorA.save();
+
+  const topUpBoth = await topUpService.createTopUpRequest(vendorA._id, {
+    requestedAmount: 75000,
+    preferredPaymentMethod: 'both',
+    selectedBankAccountIds: [vendorA.bankAccounts[0]._id],
+    selectedWalletIds: [vendorA.wallets[0]._id],
+    notes: 'Urgent liquidity via bank or wallet'
+  });
+  const bankAccNum = Array.isArray(topUpBoth.vendorBankDetails) ? topUpBoth.vendorBankDetails[0]?.accountNumber : topUpBoth.vendorBankDetails?.accountNumber;
+  const walletIdVal = Array.isArray(topUpBoth.vendorWalletDetails) ? topUpBoth.vendorWalletDetails[0]?.walletId : topUpBoth.vendorWalletDetails?.walletId;
+  assert(
+    topUpBoth &&
+      topUpBoth.preferredPaymentMethod === 'both' &&
+      bankAccNum === '1234567890' &&
+      walletIdVal === 'alpha@upi',
+    'Vendor can request both bank and wallet, selecting from linked bank and wallet lists'
+  );
+
+  // TEST 3: Vendor cannot access another vendor\'s request
   let errorCaught2 = false;
   try {
     await topUpService.getTopUpById(topUpA._id, vendorB._id);
@@ -136,21 +169,35 @@ async function runTests() {
   }
   assert(errorCaught2, 'Vendor cannot access another vendor\'s top-up request');
 
-  // TEST 3: Super Admin can see pending top-ups
+  // TEST 4: Super Admin can see pending top-ups
   const adminTopUps = await topUpService.getAllTopUpsAdmin({ status: 'PENDING_ADMIN_RESPONSE' });
   const foundInAdmin = adminTopUps.topUps.some((t) => t._id.toString() === topUpA._id.toString());
   assert(foundInAdmin, 'Super Admin can view pending top-up requests');
 
-  // TEST 4: Super Admin can respond with payment destination
-  const respondedTopUp = await topUpService.adminRespondTopUp(topUpA._id, testAdmin._id, {
-    selectedDestinationIds: [companyBank._id],
-    approvedAmount: 50000,
-    adminMessage: 'Please transfer to our HDFC Bank account'
+  // TEST 5: Super Admin can respond with multiple company destinations (bank and wallet)
+  const companyWallet = await paymentDestinationService.createDestination(
+    {
+      type: 'wallet',
+      name: 'Company Paytm UPI',
+      walletName: 'Paytm Merchant UPI',
+      walletId: 'moffin@paytm',
+      isActive: true,
+      minAmount: 100,
+      maxAmount: 100000,
+      dailyLimit: 500000
+    },
+    testAdmin._id
+  );
+
+  const respondedTopUp = await topUpService.adminRespondTopUp(topUpBoth._id, testAdmin._id, {
+    selectedDestinationIds: [companyBank._id, companyWallet._id],
+    approvedAmount: 75000,
+    adminMessage: 'Transfer to either our HDFC Bank or Paytm UPI'
   });
   assert(
     respondedTopUp.status === 'AWAITING_PAYMENT' &&
-      respondedTopUp.adminResponse.selectedDestinations.length === 1,
-    'Super Admin responds with payment destination setting status AWAITING_PAYMENT'
+      respondedTopUp.adminResponse.selectedDestinations.length === 2,
+    'Super Admin can assign multiple company destinations (both bank & wallet) matching limits'
   );
 
   // TEST 5: Vendor can submit payment proof

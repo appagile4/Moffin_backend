@@ -191,40 +191,126 @@ async function openRespondTopUpModal(topUpId) {
   if (!topUp) return;
 
   document.getElementById('respondTopUpId').value = topUp._id;
+  const requestedAmount = topUp.requestedAmount || 0;
+  const preferredMethod = topUp.preferredPaymentMethod || 'bank';
+  document.getElementById('respondApprovedAmount').value = requestedAmount;
+  document.getElementById('respondNote').value = '';
+
   const vendorName = topUp.vendorId ? `${topUp.vendorId.firstName} ${topUp.vendorId.lastName}` : 'Vendor';
   
   let vendorAccountsInfo = '';
-  if (topUp.vendorBankDetails) {
+  if (Array.isArray(topUp.vendorBankDetails) && topUp.vendorBankDetails.length > 0) {
+    vendorAccountsInfo += `<strong>Vendor Banks (${topUp.vendorBankDetails.length}):</strong> ` + topUp.vendorBankDetails.map(b => `${b.bankName} (${b.accountNumber})`).join(', ') + `<br>`;
+  } else if (topUp.vendorBankDetails?.bankName) {
     vendorAccountsInfo += `<strong>Vendor Bank:</strong> ${topUp.vendorBankDetails.bankName} - ${topUp.vendorBankDetails.accountNumber} (${topUp.vendorBankDetails.ifscCode})<br>`;
   }
-  if (topUp.vendorWalletDetails) {
+
+  if (Array.isArray(topUp.vendorWalletDetails) && topUp.vendorWalletDetails.length > 0) {
+    vendorAccountsInfo += `<strong>Vendor Wallets (${topUp.vendorWalletDetails.length}):</strong> ` + topUp.vendorWalletDetails.map(w => `${w.walletName} (${w.walletId})`).join(', ') + `<br>`;
+  } else if (topUp.vendorWalletDetails?.walletName) {
     vendorAccountsInfo += `<strong>Vendor Wallet:</strong> ${topUp.vendorWalletDetails.walletName} - ${topUp.vendorWalletDetails.walletId}<br>`;
   }
 
   document.getElementById('modalTopUpInfo').innerHTML = `
     <strong>Vendor:</strong> ${vendorName}<br>
-    <strong>Requested Amount:</strong> ₹${(topUp.requestedAmount || 0).toLocaleString('en-IN')}<br>
-    <strong>Preferred Method:</strong> <span class="badge badge-info">${topUp.preferredPaymentMethod.toUpperCase()}</span><br>
+    <strong>Requested Amount:</strong> <span style="font-size: 1.1rem; font-weight: 700; color: #4338ca;">₹${requestedAmount.toLocaleString('en-IN')}</span><br>
+    <strong>Preferred Method:</strong> <span class="badge badge-info">${preferredMethod.toUpperCase()}</span><br>
     ${vendorAccountsInfo}
     ${topUp.notes ? `<strong>Vendor Note:</strong> <em>${topUp.notes}</em>` : ''}
   `;
 
-  // Fetch active destinations
+  // Fetch active company destinations
   await fetchAdminDestinations();
-  const selectEl = document.getElementById('respondDestSelect');
-  const matchingDestinations = destinationsCache.filter(d => d.isActive);
+  const container = document.getElementById('respondDestCheckboxes');
+  const activeDestinations = destinationsCache.filter(d => d.isActive);
 
-  if (matchingDestinations.length > 0) {
-    selectEl.innerHTML = matchingDestinations.map(d => `
-      <option value="${d._id}">
-        [${d.destinationType.toUpperCase()}] ${d.destinationType === 'bank' ? `${d.bankName} - ${d.accountNumber} (${d.accountHolderName})` : `${d.walletName} - ${d.walletId}`}
-      </option>
-    `).join('');
+  if (activeDestinations.length > 0) {
+    // Categorize by limits and method match
+    const inLimitDestinations = [];
+    const otherDestinations = [];
+
+    activeDestinations.forEach(d => {
+      const isBank = d.type === 'bank' || d.destinationType === 'bank';
+      const methodMatches = preferredMethod === 'both' || (preferredMethod === 'bank' && isBank) || (preferredMethod === 'wallet' && !isBank);
+      const min = d.minAmount !== undefined ? d.minAmount : 0;
+      const max = d.maxAmount !== undefined ? d.maxAmount : 50000000;
+      const dailyLimit = d.dailyLimit !== undefined ? d.dailyLimit : 10000000;
+      const todayCollected = d.todayCollected || 0;
+      const remainingDaily = dailyLimit - todayCollected;
+
+      const withinAmountRange = requestedAmount >= min && requestedAmount <= max;
+      const withinDailyLimit = remainingDaily >= requestedAmount;
+
+      const isInLimit = methodMatches && withinAmountRange && withinDailyLimit;
+
+      const destObj = {
+        ...d,
+        isBank,
+        methodMatches,
+        isInLimit,
+        min,
+        max,
+        dailyLimit,
+        remainingDaily
+      };
+
+      if (isInLimit) {
+        inLimitDestinations.push(destObj);
+      } else {
+        otherDestinations.push(destObj);
+      }
+    });
+
+    let html = '';
+
+    if (inLimitDestinations.length > 0) {
+      html += `<div style="font-size: 0.8rem; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 0.25rem;">🎯 Recommended & In-Limit Accounts (${inLimitDestinations.length})</div>`;
+      html += inLimitDestinations.map((d, i) => `
+        <label style="display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.65rem; border: 2px solid #10b981; border-radius: 8px; background: #f0fdf4; cursor: pointer;">
+          <input type="checkbox" name="respondDestCheckbox" value="${d._id}" checked style="margin-top: 0.25rem;">
+          <div style="font-size: 0.85rem; flex: 1;">
+            <strong>${d.isBank ? '🏦 Bank' : '👛 UPI'}: ${d.name || (d.isBank ? d.bankName : d.walletName)}</strong>
+            <span class="badge badge-approved" style="margin-left: 0.35rem; font-size: 0.7rem;">In Limit</span><br>
+            <span class="text-muted">${d.isBank ? `A/C: ${d.accountNumber} | IFSC: ${d.ifscCode} | Holder: ${d.accountHolderName}` : `UPI ID: ${d.walletId}`}</span><br>
+            <small style="color: #047857;">Limits: ₹${d.min.toLocaleString('en-IN')} - ₹${d.max.toLocaleString('en-IN')} | Daily Cap: ₹${d.dailyLimit.toLocaleString('en-IN')}</small>
+          </div>
+        </label>
+      `).join('');
+    }
+
+    if (otherDestinations.length > 0) {
+      html += `<div style="font-size: 0.8rem; font-weight: 700; color: #475569; text-transform: uppercase; margin-top: 0.75rem; margin-bottom: 0.25rem;">Other Active Company Accounts (${otherDestinations.length})</div>`;
+      html += otherDestinations.map(d => `
+        <label style="display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; background: #ffffff; cursor: pointer;">
+          <input type="checkbox" name="respondDestCheckbox" value="${d._id}" ${inLimitDestinations.length === 0 ? 'checked' : ''} style="margin-top: 0.25rem;">
+          <div style="font-size: 0.85rem; flex: 1;">
+            <strong>${d.isBank ? '🏦 Bank' : '👛 UPI'}: ${d.name || (d.isBank ? d.bankName : d.walletName)}</strong><br>
+            <span class="text-muted">${d.isBank ? `A/C: ${d.accountNumber} | IFSC: ${d.ifscCode} | Holder: ${d.accountHolderName}` : `UPI ID: ${d.walletId}`}</span><br>
+            <small class="text-muted">Limits: ₹${d.min.toLocaleString('en-IN')} - ₹${d.max.toLocaleString('en-IN')} | Daily Cap: ₹${d.dailyLimit.toLocaleString('en-IN')}</small>
+          </div>
+        </label>
+      `).join('');
+    }
+
+    container.innerHTML = html;
   } else {
-    selectEl.innerHTML = '<option value="">No active company destinations found. Please add one first.</option>';
+    container.innerHTML = '<p class="empty-state">No active company destinations found. Please add company bank accounts or wallets in the Destinations tab.</p>';
   }
 
   document.getElementById('respondTopUpModal').classList.remove('hidden');
+}
+
+function autoSelectInLimitDestinations() {
+  const checkboxes = document.querySelectorAll('input[name="respondDestCheckbox"]');
+  checkboxes.forEach(cb => {
+    const parent = cb.closest('label');
+    if (parent && parent.innerHTML.includes('In Limit')) {
+      cb.checked = true;
+    } else {
+      cb.checked = false;
+    }
+  });
+  showToast('In-limit matching accounts auto-selected', 'success');
 }
 
 function closeRespondTopUpModal() {
@@ -235,11 +321,12 @@ async function submitRespondTopUp(event) {
   event.preventDefault();
 
   const topUpId = document.getElementById('respondTopUpId').value;
-  const destinationId = document.getElementById('respondDestSelect').value;
-  const adminNotes = document.getElementById('respondNote').value.trim();
+  const selectedDestinationIds = Array.from(document.querySelectorAll('input[name="respondDestCheckbox"]:checked')).map(cb => cb.value);
+  const approvedAmount = Number(document.getElementById('respondApprovedAmount').value) || undefined;
+  const adminMessage = document.getElementById('respondNote').value.trim();
 
-  if (!destinationId) {
-    showToast('Please select a payment destination', 'error');
+  if (!selectedDestinationIds || selectedDestinationIds.length === 0) {
+    showToast('Please select at least one company bank account or wallet destination', 'error');
     return;
   }
 
@@ -250,16 +337,20 @@ async function submitRespondTopUp(event) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${adminToken}`
       },
-      body: JSON.stringify({ paymentDestinationId: destinationId, adminNotes: adminNotes || undefined })
+      body: JSON.stringify({
+        selectedDestinationIds,
+        approvedAmount,
+        adminMessage: adminMessage || undefined
+      })
     });
 
     const data = await res.json();
     if (data.success) {
-      showToast('Payment destination assigned and sent to vendor!', 'success');
+      showToast(`Assigned ${selectedDestinationIds.length} destination(s) to vendor!`, 'success');
       closeRespondTopUpModal();
       fetchAdminTopUps();
     } else {
-      showToast(data.message || 'Failed to assign destination', 'error');
+      showToast(data.message || 'Failed to assign destinations', 'error');
     }
   } catch (err) {
     showToast('Failed to connect to server', 'error');
