@@ -133,7 +133,7 @@ router.get('/topups/:id', authMiddleware, vendorAuth, validateObjectId('id'), ge
 // 6. PAYMENT CONFIRMATION & PROOF SUBMISSION (Protected - Vendor only)
 // =============================================================================
 router.post(
-  '/topups/:id/payment-confirmation',
+  ['/topups/:id/confirm-payment', '/topups/:id/payment-confirmation'],
   authMiddleware,
   vendorAuth,
   validateObjectId('id'),
@@ -153,7 +153,7 @@ router.get(
 // 7. FINANCIAL WALLET & LEDGER (Protected - Vendor only)
 // =============================================================================
 router.get('/wallet', authMiddleware, vendorAuth, getVendorWallet);
-router.get('/wallet/transactions', authMiddleware, vendorAuth, getVendorTransactions);
+router.get(['/wallet/transactions', '/wallet/ledger'], authMiddleware, vendorAuth, getVendorTransactions);
 
 // =============================================================================
 // 8. FCFS STATUS & TIERS (Protected - Vendor only)

@@ -94,8 +94,20 @@ router.post('/topups/:id/respond', authMiddleware, adminAuth, validateObjectId('
 // 4. PAYMENT VERIFICATION & APPROVAL / REJECTION
 // =============================================================================
 router.get('/payment-confirmations', authMiddleware, adminAuth, adminGetAllConfirmations);
-router.post('/payment-confirmations/:id/approve', authMiddleware, superAdminAuth, validateObjectId('id'), adminApprovePayment);
-router.post('/payment-confirmations/:id/reject', authMiddleware, superAdminAuth, validateObjectId('id'), adminRejectPayment);
+router.post(
+  ['/payment-confirmations/:id/approve', '/topups/:id/approve'],
+  authMiddleware,
+  superAdminAuth,
+  validateObjectId('id'),
+  adminApprovePayment
+);
+router.post(
+  ['/payment-confirmations/:id/reject', '/topups/:id/reject'],
+  authMiddleware,
+  superAdminAuth,
+  validateObjectId('id'),
+  adminRejectPayment
+);
 
 // =============================================================================
 // 5. COMPANY PAYMENT DESTINATIONS (Bank / Wallet)
