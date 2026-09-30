@@ -34,6 +34,10 @@ const bankAccountSchema = new mongoose.Schema(
     isDefault: {
       type: Boolean,
       default: false
+    },
+    isActive: {
+      type: Boolean,
+      default: true
     }
   },
   {
@@ -65,6 +69,10 @@ const walletSchema = new mongoose.Schema(
     isDefault: {
       type: Boolean,
       default: false
+    },
+    isActive: {
+      type: Boolean,
+      default: true
     }
   },
   {

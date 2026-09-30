@@ -118,6 +118,7 @@
       <!-- Navigation Tabs -->
       <div class="tabs">
         <button class="tab-btn active" onclick="switchAdminTab('topupsApprovalTab')">⚡ Top-Up Approvals & Proofs</button>
+        <button class="tab-btn" onclick="switchAdminTab('historyTab')">📋 Request History</button>
         <button class="tab-btn" onclick="switchAdminTab('vendorsTab')">👥 Vendor KYC & Accounts</button>
         <button class="tab-btn" onclick="switchAdminTab('destinationsTab')">🏢 Payment Destinations</button>
         <button class="tab-btn" onclick="switchAdminTab('fcfsTab')">🎯 FCFS Queue & Tiers</button>
@@ -185,6 +186,54 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- TAB: COMPLETE REQUEST HISTORY & ARCHIVE -->
+      <div id="historyTab" class="tab-content hidden">
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <h3>📋 Complete Top-Up Request History</h3>
+              <p class="subtitle">Full historical ledger of all vendor top-up requests and transactions</p>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="fetchAdminRequestHistory()">🔄 Refresh History</button>
+          </div>
+
+          <!-- History Filter Bar -->
+          <div class="search-filter-bar">
+            <div class="tabs" style="margin-bottom: 0; border: none; flex-wrap: wrap;">
+              <button class="tab-btn active" onclick="setAdminHistoryFilter('all', event)">All Requests</button>
+              <button class="tab-btn" onclick="setAdminHistoryFilter('PENDING_ADMIN_RESPONSE', event)">⏳ Pending Response</button>
+              <button class="tab-btn" onclick="setAdminHistoryFilter('AWAITING_PAYMENT', event)">💳 Awaiting Payment</button>
+              <button class="tab-btn" onclick="setAdminHistoryFilter('PAYMENT_SUBMITTED', event)">🔍 Under Review</button>
+              <button class="tab-btn" onclick="setAdminHistoryFilter('APPROVED', event)">✅ Approved</button>
+              <button class="tab-btn" onclick="setAdminHistoryFilter('REJECTED', event)">❌ Rejected</button>
+            </div>
+            <div class="search-input">
+              <input type="text" id="adminHistorySearchInput" placeholder="🔍 Search ID, vendor, email, UTR..." oninput="handleAdminHistorySearch()">
+            </div>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Request ID</th>
+                  <th>Vendor</th>
+                  <th>Requested Amount</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Assigned Destinations</th>
+                  <th>Created At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminHistoryTbody">
+                <tr><td colspan="8" class="empty-state">Loading request history...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- TAB 2: VENDOR KYC & ACCOUNTS -->
@@ -297,8 +346,8 @@
                   <input type="text" id="destWalletId" placeholder="moffin@okhdfcbank">
                 </div>
                 <div class="form-group">
-                  <label>QR Code Image URL (Optional)</label>
-                  <input type="url" id="destWalletQr" placeholder="https://example.com/qr.png">
+                  <label>QR Code Image (Upload to Cloudinary - Optional)</label>
+                  <input type="file" id="destWalletQr" accept="image/jpeg,image/png,image/webp">
                 </div>
               </div>
 
@@ -512,6 +561,195 @@
           <button type="submit" class="btn btn-danger">Confirm Rejection</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL 5: EDIT COMPANY PAYMENT DESTINATION -->
+  <div id="editDestinationModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 540px;">
+      <div class="card-header flex-between">
+        <h3>✏️ Edit Company Destination</h3>
+        <button type="button" class="btn-close" onclick="closeEditDestinationModal()">✕</button>
+      </div>
+      <form id="editDestinationForm" onsubmit="handleUpdateDestination(event)">
+        <input type="hidden" id="editDestId">
+        <input type="hidden" id="editDestType">
+
+        <div class="form-group">
+          <label>Display Name / Label *</label>
+          <input type="text" id="editDestDisplayName" required>
+        </div>
+
+        <!-- Bank Specific Fields -->
+        <div id="editDestBankFields">
+          <div class="form-group">
+            <label>Bank Name *</label>
+            <input type="text" id="editDestBankName">
+          </div>
+          <div class="form-group">
+            <label>Account Number *</label>
+            <input type="text" id="editDestAccountNumber">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>IFSC Code *</label>
+              <input type="text" id="editDestIfsc">
+            </div>
+            <div class="form-group">
+              <label>Branch Name</label>
+              <input type="text" id="editDestBranch">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Account Holder Name *</label>
+            <input type="text" id="editDestHolderName">
+          </div>
+        </div>
+
+        <!-- Wallet Specific Fields -->
+        <div id="editDestWalletFields" class="hidden">
+          <div class="form-group">
+            <label>Wallet / UPI Name *</label>
+            <input type="text" id="editDestWalletName">
+          </div>
+          <div class="form-group">
+            <label>UPI ID / Wallet ID *</label>
+            <input type="text" id="editDestWalletId">
+          </div>
+          <div class="form-group">
+            <label>Change QR Code (Upload to Cloudinary)</label>
+            <input type="file" id="editDestWalletQr" accept="image/jpeg,image/png,image/webp">
+            <p id="editDestWalletQrCurrent" style="font-size: 0.75rem; margin-top: 0.25rem; color: var(--text-muted);"></p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Daily Limit (₹)</label>
+          <input type="number" id="editDestDailyLimit">
+        </div>
+
+        <div class="form-group">
+          <label>Transfer Instructions / Notes</label>
+          <input type="text" id="editDestInstructions">
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" id="editDestIsActive">
+          <label for="editDestIsActive">Active (Available for top-up allocation)</label>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditDestinationModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 6: ADMIN EDIT VENDOR BANK ACCOUNT -->
+  <div id="adminEditVendorBankModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 500px;">
+      <div class="card-header flex-between">
+        <h3>✏️ Edit Vendor Bank Account</h3>
+        <button type="button" class="btn-close" onclick="closeAdminEditVendorBankModal()">✕</button>
+      </div>
+      <form id="adminEditVendorBankForm" onsubmit="handleAdminUpdateVendorBank(event)">
+        <input type="hidden" id="adminBankVendorId">
+        <input type="hidden" id="adminBankAccountId">
+
+        <div class="form-group">
+          <label>Bank Name *</label>
+          <input type="text" id="adminBankName" required>
+        </div>
+        <div class="form-group">
+          <label>Account Number *</label>
+          <input type="text" id="adminBankAccountNumber" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>IFSC Code *</label>
+            <input type="text" id="adminBankIfsc" required>
+          </div>
+          <div class="form-group">
+            <label>Branch Name</label>
+            <input type="text" id="adminBankBranch">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Account Holder Name *</label>
+          <input type="text" id="adminBankHolderName" required>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="adminBankIsActive">
+          <label for="adminBankIsActive">Active Status</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="adminBankIsDefault">
+          <label for="adminBankIsDefault">Primary / Default Bank</label>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeAdminEditVendorBankModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Bank Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 7: ADMIN EDIT VENDOR WALLET -->
+  <div id="adminEditVendorWalletModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 500px;">
+      <div class="card-header flex-between">
+        <h3>✏️ Edit Vendor Wallet</h3>
+        <button type="button" class="btn-close" onclick="closeAdminEditVendorWalletModal()">✕</button>
+      </div>
+      <form id="adminEditVendorWalletForm" onsubmit="handleAdminUpdateVendorWallet(event)">
+        <input type="hidden" id="adminWalletVendorId">
+        <input type="hidden" id="adminWalletSubId">
+
+        <div class="form-group">
+          <label>Wallet Name *</label>
+          <input type="text" id="adminWalletName" required>
+        </div>
+        <div class="form-group">
+          <label>UPI ID / Wallet Address *</label>
+          <input type="text" id="adminWalletId" required>
+        </div>
+        <div class="form-group">
+          <label>Change QR Code (Upload to Cloudinary)</label>
+          <input type="file" id="adminWalletQrFile" accept="image/jpeg,image/png,image/webp">
+          <p id="adminWalletQrCurrent" style="font-size: 0.75rem; margin-top: 0.25rem; color: var(--text-muted);"></p>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="adminWalletIsActive">
+          <label for="adminWalletIsActive">Active Status</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="adminWalletIsDefault">
+          <label for="adminWalletIsDefault">Primary / Default Wallet</label>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeAdminEditVendorWalletModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Wallet Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 8: TOP-UP REQUEST FULL DETAILS MODAL -->
+  <div id="topUpDetailModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 650px;">
+      <div class="card-header flex-between">
+        <h3>🔍 Top-Up Request Comprehensive Details</h3>
+        <button type="button" class="btn-close" onclick="closeTopUpDetailModal()">✕</button>
+      </div>
+      <div id="topUpDetailContent">
+        <!-- Injected via JS -->
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeTopUpDetailModal()">Close</button>
+      </div>
     </div>
   </div>
 

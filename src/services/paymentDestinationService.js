@@ -6,11 +6,13 @@ const PaymentDestination = require('../models/paymentDestinationModel');
 const createDestination = async (data, adminId) => {
   const type = data.type || data.destinationType || (data.bankName ? 'bank' : 'wallet');
   const name = data.name || (type === 'bank' ? data.bankName : data.walletName) || 'Company Destination';
+  const isActive = data.isActive === undefined ? true : (data.isActive === true || data.isActive === 'true');
 
   const destination = new PaymentDestination({
     ...data,
     type,
     name,
+    isActive,
     createdBy: adminId,
     updatedBy: adminId
   });
@@ -35,12 +37,13 @@ const getDestinationById = async (id) => {
  * Update payment destination
  */
 const updateDestination = async (id, data, adminId) => {
+  const updateData = { ...data, updatedBy: adminId };
+  if (data.isActive !== undefined) {
+    updateData.isActive = data.isActive === true || data.isActive === 'true';
+  }
   return await PaymentDestination.findByIdAndUpdate(
     id,
-    {
-      ...data,
-      updatedBy: adminId
-    },
+    updateData,
     { new: true, runValidators: true }
   );
 };

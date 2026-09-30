@@ -15,7 +15,11 @@ const {
   approveVendor,
   rejectVendor,
   activateVendor,
-  deactivateVendor
+  deactivateVendor,
+  adminUpdateVendorBankAccount,
+  adminToggleVendorBankAccount,
+  adminUpdateVendorWallet,
+  adminToggleVendorWallet
 } = require('../controllers/vendorController');
 
 // TopUp Management
@@ -33,7 +37,8 @@ const {
   getDestinations,
   getDestinationById,
   updateDestination,
-  deleteDestination
+  deleteDestination,
+  toggleDestinationActive
 } = require('../controllers/paymentDestinationController');
 
 // Wallets & Ledger
@@ -67,6 +72,8 @@ const {
   superAdminAuth
 } = require('../middleware/roleMiddleware');
 
+const upload = require('../middleware/uploadMiddleware');
+
 // =============================================================================
 // 1. ADMIN AUTHENTICATION (Login only, no registration)
 // =============================================================================
@@ -83,6 +90,41 @@ router.patch('/vendors/:vendorId/approve', authMiddleware, superAdminAuth, valid
 router.patch('/vendors/:vendorId/reject', authMiddleware, superAdminAuth, validateObjectId('vendorId'), rejectVendor);
 router.patch('/vendors/:vendorId/activate', authMiddleware, superAdminAuth, validateObjectId('vendorId'), activateVendor);
 router.patch('/vendors/:vendorId/deactivate', authMiddleware, superAdminAuth, validateObjectId('vendorId'), deactivateVendor);
+
+// Admin: Edit Vendor Bank Accounts & Wallets
+router.patch(
+  '/vendors/:vendorId/bank-accounts/:bankAccountId',
+  authMiddleware,
+  superAdminAuth,
+  validateObjectId('vendorId'),
+  validateObjectId('bankAccountId'),
+  adminUpdateVendorBankAccount
+);
+router.patch(
+  '/vendors/:vendorId/bank-accounts/:bankAccountId/toggle',
+  authMiddleware,
+  superAdminAuth,
+  validateObjectId('vendorId'),
+  validateObjectId('bankAccountId'),
+  adminToggleVendorBankAccount
+);
+router.patch(
+  '/vendors/:vendorId/wallets/:walletSubId',
+  authMiddleware,
+  superAdminAuth,
+  validateObjectId('vendorId'),
+  validateObjectId('walletSubId'),
+  upload.single('qrCode'),
+  adminUpdateVendorWallet
+);
+router.patch(
+  '/vendors/:vendorId/wallets/:walletSubId/toggle',
+  authMiddleware,
+  superAdminAuth,
+  validateObjectId('vendorId'),
+  validateObjectId('walletSubId'),
+  adminToggleVendorWallet
+);
 
 // =============================================================================
 // 3. TOP-UP REQUEST MANAGEMENT
@@ -113,9 +155,10 @@ router.post(
 // 5. COMPANY PAYMENT DESTINATIONS (Bank / Wallet)
 // =============================================================================
 router.get('/payment-destinations', authMiddleware, adminAuth, getDestinations);
-router.post('/payment-destinations', authMiddleware, superAdminAuth, createDestination);
+router.post('/payment-destinations', authMiddleware, superAdminAuth, upload.single('qrCode'), createDestination);
 router.get('/payment-destinations/:id', authMiddleware, adminAuth, validateObjectId('id'), getDestinationById);
-router.patch('/payment-destinations/:id', authMiddleware, superAdminAuth, validateObjectId('id'), updateDestination);
+router.patch('/payment-destinations/:id', authMiddleware, superAdminAuth, validateObjectId('id'), upload.single('qrCode'), updateDestination);
+router.patch('/payment-destinations/:id/toggle', authMiddleware, superAdminAuth, validateObjectId('id'), toggleDestinationActive);
 router.delete('/payment-destinations/:id', authMiddleware, superAdminAuth, validateObjectId('id'), deleteDestination);
 
 // =============================================================================

@@ -200,13 +200,14 @@ const getTopUpById = async (id, vendorId = null) => {
 /**
  * 4. SuperAdmin: Get all Top-Up requests with filters & pagination
  */
-const getAllTopUpsAdmin = async ({ page = 1, limit = 20, status = null, search = null } = {}) => {
+const getAllTopUpsAdmin = async ({ page = 1, limit = 50, status = null, vendorId = null } = {}) => {
   const numPage = Math.max(1, parseInt(page, 10) || 1);
-  const numLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+  const numLimit = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
   const skip = (numPage - 1) * numLimit;
 
   const query = {};
-  if (status) query.status = status;
+  if (status && status !== 'all') query.status = status;
+  if (vendorId) query.vendorId = vendorId;
 
   const [topUps, total] = await Promise.all([
     TopUpRequest.find(query)
@@ -215,6 +216,7 @@ const getAllTopUpsAdmin = async ({ page = 1, limit = 20, status = null, search =
       .limit(numLimit)
       .populate('vendorId', 'firstName lastName email mobileNumber profilePhoto verificationStatus isActive')
       .populate('adminResponse.selectedDestinations')
+      .populate('adminResponse.respondedBy', 'name email')
       .populate('paymentConfirmationId'),
     TopUpRequest.countDocuments(query)
   ]);

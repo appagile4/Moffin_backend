@@ -489,13 +489,23 @@ async function fetchVendorTopUps() {
               if (!dest) return '';
               const isBank = dest.type === 'bank' || dest.destinationType === 'bank';
               return `
-                <div style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.65rem; margin-top: 0.35rem;">
-                  <strong>${isBank ? '🏦 Bank Account' : '👛 UPI / Wallet'}:</strong> ${dest.name || (isBank ? dest.bankName : dest.walletName)}<br>
-                  ${isBank 
-                    ? `Bank: <strong>${dest.bankName}</strong> | A/C: <strong>${dest.accountNumber}</strong> | IFSC: <strong>${dest.ifscCode}</strong> | Holder: ${dest.accountHolderName}`
-                    : `UPI ID: <strong>${dest.walletId}</strong>`
-                  }
-                  ${dest.instructions ? `<br><small class="text-muted">Instructions: ${dest.instructions}</small>` : ''}
+                <div style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.65rem; margin-top: 0.35rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                  <div>
+                    <strong>${isBank ? '🏦 Bank Account' : '👛 UPI / Wallet'}:</strong> ${dest.name || (isBank ? dest.bankName : dest.walletName)}<br>
+                    ${isBank 
+                      ? `Bank: <strong>${dest.bankName}</strong> | A/C: <strong>${dest.accountNumber}</strong> | IFSC: <strong>${dest.ifscCode}</strong> | Holder: ${dest.accountHolderName}`
+                      : `UPI ID: <strong>${dest.walletId}</strong>`
+                    }
+                    ${dest.instructions ? `<br><small class="text-muted">Instructions: ${dest.instructions}</small>` : ''}
+                  </div>
+                  ${dest.qrCode ? `
+                    <div style="text-align: center;">
+                      <a href="${dest.qrCode}" target="_blank" title="Click to view full QR">
+                        <img src="${dest.qrCode}" alt="Destination QR" style="width: 65px; height: 65px; object-fit: contain; border: 1px solid #d1d5db; border-radius: 6px; padding: 2px; background: #fff;">
+                      </a>
+                      <br><small style="font-size: 0.7rem; color: #4b5563;">Scan QR</small>
+                    </div>
+                  ` : ''}
                 </div>
               `;
             }).join('');
@@ -831,10 +841,22 @@ async function fetchWallets() {
       listEl.innerHTML = data.data.wallets.map(w => `
         <div class="item-card ${w.isDefault ? 'is-default' : ''}">
           <div class="item-info">
-            <h4>${w.walletName}</h4>
-            <p>ID / VPA: <strong>${w.walletId}</strong></p>
-            <div style="margin-top: 0.35rem;">
-              ${w.isDefault ? '<span class="badge badge-default">Default</span>' : ''}
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+              <div>
+                <h4>${w.walletName}</h4>
+                <p>ID / VPA: <strong>${w.walletId}</strong></p>
+                <div style="margin-top: 0.35rem;">
+                  ${w.isDefault ? '<span class="badge badge-default">Default</span>' : ''}
+                </div>
+              </div>
+              ${w.qrCode ? `
+                <div style="text-align: center;">
+                  <a href="${w.qrCode}" target="_blank" title="Click to view QR code">
+                    <img src="${w.qrCode}" alt="Wallet QR" style="width: 50px; height: 50px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 6px; padding: 2px; background: #fff;">
+                  </a>
+                  <br><small style="font-size: 0.7rem; color: #6b7280;">QR Code</small>
+                </div>
+              ` : ''}
             </div>
           </div>
           <div class="item-actions">
@@ -857,26 +879,31 @@ async function fetchWallets() {
 async function handleAddWallet(event) {
   event.preventDefault();
 
-  const payload = {
-    walletName: document.getElementById('walletName').value.trim(),
-    walletId: document.getElementById('walletId').value.trim(),
-    qrCode: document.getElementById('walletQr').value.trim() || undefined,
-    isDefault: document.getElementById('walletIsDefault').checked
-  };
+  const walletName = document.getElementById('walletName').value.trim();
+  const walletId = document.getElementById('walletId').value.trim();
+  const qrFile = document.getElementById('walletQrFile')?.files[0];
+  const isDefault = document.getElementById('walletIsDefault').checked;
+
+  const formData = new FormData();
+  formData.append('walletName', walletName);
+  formData.append('walletId', walletId);
+  formData.append('isDefault', isDefault);
+  if (qrFile) {
+    formData.append('qrCode', qrFile);
+  }
 
   try {
     const res = await fetch(`${API_BASE}/vendors/wallets`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${currentToken}`
       },
-      body: JSON.stringify(payload)
+      body: formData
     });
 
     const data = await res.json();
     if (data.success) {
-      showToast('Wallet added!', 'success');
+      showToast('Wallet added with QR code!', 'success');
       document.getElementById('addWalletForm').reset();
       fetchWallets();
     } else {
@@ -894,9 +921,17 @@ function openEditWalletModal(id) {
   document.getElementById('editWalletSubId').value = wallet._id;
   document.getElementById('editWalletName').value = wallet.walletName || '';
   document.getElementById('editWalletId').value = wallet.walletId || '';
-  document.getElementById('editWalletQr').value = wallet.qrCode || '';
-  document.getElementById('editWalletIsDefault').checked = Boolean(wallet.isDefault);
+  const qrFileInput = document.getElementById('editWalletQrFile');
+  if (qrFileInput) qrFileInput.value = '';
 
+  const qrCurrentEl = document.getElementById('editWalletQrCurrent');
+  if (qrCurrentEl) {
+    qrCurrentEl.innerHTML = wallet.qrCode 
+      ? `Current QR: <a href="${wallet.qrCode}" target="_blank" style="color: var(--primary); text-decoration: underline;">View Current Image</a> (Upload new image to replace)`
+      : `No QR code currently uploaded.`;
+  }
+
+  document.getElementById('editWalletIsDefault').checked = Boolean(wallet.isDefault);
   document.getElementById('editWalletModal').classList.remove('hidden');
 }
 
@@ -908,21 +943,26 @@ async function handleUpdateWallet(event) {
   event.preventDefault();
 
   const walletSubId = document.getElementById('editWalletSubId').value;
-  const payload = {
-    walletName: document.getElementById('editWalletName').value.trim(),
-    walletId: document.getElementById('editWalletId').value.trim(),
-    qrCode: document.getElementById('editWalletQr').value.trim() || null,
-    isDefault: document.getElementById('editWalletIsDefault').checked
-  };
+  const walletName = document.getElementById('editWalletName').value.trim();
+  const walletId = document.getElementById('editWalletId').value.trim();
+  const qrFile = document.getElementById('editWalletQrFile')?.files[0];
+  const isDefault = document.getElementById('editWalletIsDefault').checked;
+
+  const formData = new FormData();
+  formData.append('walletName', walletName);
+  formData.append('walletId', walletId);
+  formData.append('isDefault', isDefault);
+  if (qrFile) {
+    formData.append('qrCode', qrFile);
+  }
 
   try {
     const res = await fetch(`${API_BASE}/vendors/wallets/${walletSubId}`, {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${currentToken}`
       },
-      body: JSON.stringify(payload)
+      body: formData
     });
 
     const data = await res.json();

@@ -1,4 +1,5 @@
 const destinationService = require('../services/paymentDestinationService');
+const { uploadToCloudinary } = require('../config/cloudinary');
 
 /**
  * Standard helpers
@@ -19,7 +20,14 @@ const sendError = (res, statusCode, message) => {
 const createDestination = async (req, res) => {
   try {
     const adminId = req.user.id || req.user._id;
-    const destination = await destinationService.createDestination(req.body, adminId);
+    const data = { ...req.body };
+
+    if (req.file) {
+      const uploadResult = await uploadToCloudinary(req.file.buffer, 'moffin_admin/destinations_qr');
+      data.qrCode = uploadResult.secure_url;
+    }
+
+    const destination = await destinationService.createDestination(data, adminId);
     return sendSuccess(res, 201, 'Payment destination created successfully', { destination });
   } catch (error) {
     console.error('createDestination Error:', error.message);
@@ -78,7 +86,14 @@ const getDestinationById = async (req, res) => {
 const updateDestination = async (req, res) => {
   try {
     const adminId = req.user.id || req.user._id;
-    const destination = await destinationService.updateDestination(req.params.id, req.body, adminId);
+    const data = { ...req.body };
+
+    if (req.file) {
+      const uploadResult = await uploadToCloudinary(req.file.buffer, 'moffin_admin/destinations_qr');
+      data.qrCode = uploadResult.secure_url;
+    }
+
+    const destination = await destinationService.updateDestination(req.params.id, data, adminId);
     if (!destination) {
       return sendError(res, 404, 'Payment destination not found');
     }
@@ -107,10 +122,33 @@ const deleteDestination = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Toggle destination active/inactive status (SuperAdmin)
+ * @route   PATCH /api/admin/payment-destinations/:id/toggle
+ * @access  Private (SuperAdmin)
+ */
+const toggleDestinationActive = async (req, res) => {
+  try {
+    const adminId = req.user.id || req.user._id;
+    const destination = await destinationService.getDestinationById(req.params.id);
+    if (!destination) {
+      return sendError(res, 404, 'Payment destination not found');
+    }
+    destination.isActive = !destination.isActive;
+    destination.updatedBy = adminId;
+    await destination.save();
+    return sendSuccess(res, 200, `Payment destination ${destination.isActive ? 'activated' : 'deactivated'} successfully`, { destination });
+  } catch (error) {
+    console.error('toggleDestinationActive Error:', error.message);
+    return sendError(res, 500, error.message || 'Failed to toggle destination status');
+  }
+};
+
 module.exports = {
   createDestination,
   getDestinations,
   getDestinationById,
   updateDestination,
-  deleteDestination
+  deleteDestination,
+  toggleDestinationActive
 };

@@ -98,13 +98,14 @@ router.patch(
 // =============================================================================
 // 4. WALLET MANAGEMENT ROUTES (Protected - Vendor only)
 // =============================================================================
-router.post('/wallets', authMiddleware, vendorAuth, addWallet);
+router.post('/wallets', authMiddleware, vendorAuth, upload.single('qrCode'), addWallet);
 router.get('/wallets', authMiddleware, vendorAuth, getWallets);
 router.put(
   '/wallets/:walletSubId',
   authMiddleware,
   vendorAuth,
   validateObjectId('walletSubId'),
+  upload.single('qrCode'),
   updateWallet
 );
 router.delete(

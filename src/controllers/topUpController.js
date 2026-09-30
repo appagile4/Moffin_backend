@@ -179,8 +179,8 @@ const getPaymentConfirmationById = async (req, res) => {
  */
 const adminGetAllTopUps = async (req, res) => {
   try {
-    const { page, limit, status } = req.query;
-    const result = await topUpService.getAllTopUpsAdmin({ page, limit, status });
+    const { page, limit, status, vendorId } = req.query;
+    const result = await topUpService.getAllTopUpsAdmin({ page, limit, status, vendorId });
 
     return sendSuccess(res, 200, 'All top-up requests retrieved successfully', result);
   } catch (error) {

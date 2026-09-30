@@ -11,7 +11,9 @@ let pendingTopUpsCache = [];
 let confirmationsCache = [];
 let destinationsCache = [];
 let fcfsQueueCache = [];
+let allRequestsHistoryCache = [];
 let currentVendorFilter = 'all';
+let currentHistoryFilter = 'all';
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
@@ -63,6 +65,8 @@ function switchAdminTab(tabId) {
   if (tabId === 'topupsApprovalTab') {
     fetchAdminTopUps();
     fetchAdminPaymentConfirmations();
+  } else if (tabId === 'historyTab') {
+    fetchAdminRequestHistory();
   } else if (tabId === 'vendorsTab') {
     fetchAdminVendors();
   } else if (tabId === 'destinationsTab') {
@@ -139,6 +143,7 @@ function refreshAllDashboardData() {
   fetchAdminTopUps();
   fetchAdminPaymentConfirmations();
   fetchAdminDestinations();
+  fetchAdminRequestHistory();
 }
 
 /**
@@ -581,11 +586,50 @@ function openVendorDetailModal(vendorId) {
   if (!v) return;
 
   const banksHtml = v.bankAccounts?.length > 0
-    ? v.bankAccounts.map(b => `<div class="item-card mb-2"><p><strong>${b.bankName}</strong> | A/C: ${b.accountNumber} | IFSC: ${b.ifscCode} | Holder: ${b.accountHolderName} ${b.isDefault ? '<span class="badge badge-default">Default</span>' : ''}</p></div>`).join('')
+    ? v.bankAccounts.map(b => `
+        <div class="item-card mb-2" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <p><strong>${b.bankName}</strong> | A/C: ${b.accountNumber} | IFSC: ${b.ifscCode} | Holder: ${b.accountHolderName}</p>
+            <div style="margin-top: 0.25rem;">
+              ${b.isDefault ? '<span class="badge badge-default">Default</span>' : ''}
+              <span class="badge ${b.isActive !== false ? 'badge-approved' : 'badge-rejected'}">${b.isActive !== false ? 'Active' : 'Inactive'}</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.35rem;">
+            <button class="btn btn-sm btn-secondary" onclick="openAdminEditVendorBankModal('${v._id}', '${b._id}')">✏️ Edit</button>
+            <button class="btn btn-sm ${b.isActive !== false ? 'btn-warning' : 'btn-success'}" onclick="adminToggleVendorBank('${v._id}', '${b._id}')">
+              ${b.isActive !== false ? '⏸️ Deactivate' : '✅ Activate'}
+            </button>
+          </div>
+        </div>
+      `).join('')
     : '<p class="text-muted">No bank accounts linked.</p>';
 
   const walletsHtml = v.wallets?.length > 0
-    ? v.wallets.map(w => `<div class="item-card mb-2"><p><strong>${w.walletName}</strong> | VPA/ID: ${w.walletId} ${w.isDefault ? '<span class="badge badge-default">Default</span>' : ''}</p></div>`).join('')
+    ? v.wallets.map(w => `
+        <div class="item-card mb-2" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            ${w.qrCode ? `
+              <a href="${w.qrCode}" target="_blank" title="Click to view QR">
+                <img src="${w.qrCode}" alt="QR" style="width: 45px; height: 45px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 4px; padding: 2px; background: #fff;">
+              </a>
+            ` : ''}
+            <div>
+              <p><strong>${w.walletName}</strong> | VPA/ID: ${w.walletId}</p>
+              <div style="margin-top: 0.25rem;">
+                ${w.isDefault ? '<span class="badge badge-default">Default</span>' : ''}
+                <span class="badge ${w.isActive !== false ? 'badge-approved' : 'badge-rejected'}">${w.isActive !== false ? 'Active' : 'Inactive'}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.35rem;">
+            <button class="btn btn-sm btn-secondary" onclick="openAdminEditVendorWalletModal('${v._id}', '${w._id}')">✏️ Edit</button>
+            <button class="btn btn-sm ${w.isActive !== false ? 'btn-warning' : 'btn-success'}" onclick="adminToggleVendorWallet('${v._id}', '${w._id}')">
+              ${w.isActive !== false ? '⏸️ Deactivate' : '✅ Activate'}
+            </button>
+          </div>
+        </div>
+      `).join('')
     : '<p class="text-muted">No wallets linked.</p>';
 
   document.getElementById('modalVendorContent').innerHTML = `
@@ -608,7 +652,16 @@ function openVendorDetailModal(vendorId) {
       <h4>👛 Wallets / UPI (${v.wallets?.length || 0})</h4>
       ${walletsHtml}
     </div>
+    <div class="detail-section">
+      <h4>📋 Top-Up Request History</h4>
+      <div id="modalVendorTopUpsList" style="max-height: 180px; overflow-y: auto;">
+        <p class="text-muted" style="font-size: 0.85rem;">Loading vendor request history...</p>
+      </div>
+    </div>
   `;
+
+  // Fetch this vendor's topup history
+  loadVendorTopUpHistory(v._id);
 
   document.getElementById('modalVendorActions').innerHTML = `
     <button type="button" class="btn btn-secondary" onclick="closeVendorDetailModal()">Close</button>
@@ -620,6 +673,206 @@ function openVendorDetailModal(vendorId) {
   `;
 
   document.getElementById('vendorDetailModal').classList.remove('hidden');
+}
+
+async function loadVendorTopUpHistory(vendorId) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/topups?vendorId=${vendorId}&limit=50`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const data = await res.json();
+    const container = document.getElementById('modalVendorTopUpsList');
+    if (!container) return;
+
+    if (data.success && data.data?.topUps?.length > 0) {
+      container.innerHTML = data.data.topUps.map(t => {
+        const dateStr = new Date(t.createdAt).toLocaleDateString('en-IN');
+        const amountStr = `₹${(t.requestedAmount || 0).toLocaleString('en-IN')}`;
+        return `
+          <div class="item-card mb-2" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem;">
+            <div>
+              <strong>${t.topUpId || t._id.slice(-8)}</strong> — ${amountStr}
+              <br><small class="text-muted">${(t.preferredPaymentMethod || 'BANK').toUpperCase()} | ${dateStr}</small>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="badge badge-${t.status}">${t.status.replace(/_/g, ' ')}</span>
+              <button class="btn btn-sm btn-secondary" onclick="openTopUpDetailModal('${t._id}')">🔍</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      container.innerHTML = '<p class="text-muted" style="font-size: 0.85rem;">No top-up requests found for this vendor.</p>';
+    }
+  } catch (err) {
+    console.error('loadVendorTopUpHistory error:', err);
+  }
+}
+
+/**
+ * 4B. Complete Top-Up Request History
+ */
+async function fetchAdminRequestHistory() {
+  if (!adminToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/topups?limit=100`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success && data.data?.topUps) {
+      allRequestsHistoryCache = data.data.topUps;
+      renderAdminHistoryTable();
+    }
+  } catch (err) {
+    console.error('fetchAdminRequestHistory error:', err);
+  }
+}
+
+function setAdminHistoryFilter(filter, event) {
+  currentHistoryFilter = filter;
+  document.querySelectorAll('#historyTab .tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  if (event && event.target) event.target.classList.add('active');
+  renderAdminHistoryTable();
+}
+
+function handleAdminHistorySearch() {
+  renderAdminHistoryTable();
+}
+
+function renderAdminHistoryTable() {
+  const query = document.getElementById('adminHistorySearchInput')?.value.toLowerCase().trim() || '';
+  let list = [...allRequestsHistoryCache];
+
+  if (currentHistoryFilter !== 'all') {
+    list = list.filter(t => t.status === currentHistoryFilter);
+  }
+
+  if (query) {
+    list = list.filter(t => {
+      const vendorName = t.vendorId ? `${t.vendorId.firstName} ${t.vendorId.lastName}`.toLowerCase() : '';
+      const vendorEmail = t.vendorId?.email?.toLowerCase() || '';
+      const topUpId = (t.topUpId || t._id).toLowerCase();
+      const utr = t.paymentConfirmationId?.transactionId?.toLowerCase() || '';
+      return vendorName.includes(query) || vendorEmail.includes(query) || topUpId.includes(query) || utr.includes(query);
+    });
+  }
+
+  const tbody = document.getElementById('adminHistoryTbody');
+  if (list.length > 0) {
+    tbody.innerHTML = list.map(t => {
+      const vendorName = t.vendorId ? `${t.vendorId.firstName} ${t.vendorId.lastName}` : 'Vendor';
+      const vendorEmail = t.vendorId?.email || '';
+      const dateStr = new Date(t.createdAt).toLocaleString('en-IN');
+      const reqAmountStr = `₹${(t.requestedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      const assignedDests = t.adminResponse?.selectedDestinations || [];
+      const destSummary = assignedDests.length > 0
+        ? assignedDests.map(d => d ? (d.name || d.bankName || d.walletName) : '').filter(Boolean).join(', ')
+        : (t.status === 'PENDING_ADMIN_RESPONSE' ? '<span class="text-muted">Awaiting Assignment</span>' : 'None');
+
+      return `
+        <tr>
+          <td><code>${t.topUpId || t._id.slice(-8)}</code></td>
+          <td>
+            <strong>${vendorName}</strong><br>
+            <small class="text-muted">${vendorEmail}</small>
+          </td>
+          <td style="font-weight: 700; color: #1e293b;">${reqAmountStr}</td>
+          <td><span class="badge badge-info">${(t.preferredPaymentMethod || 'BANK').toUpperCase()}</span></td>
+          <td><span class="badge badge-${t.status}">${t.status.replace(/_/g, ' ')}</span></td>
+          <td><small>${destSummary}</small></td>
+          <td><small>${dateStr}</small></td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="openTopUpDetailModal('${t._id}')">🔍 Details</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No matching top-up requests found in history.</td></tr>';
+  }
+}
+
+function openTopUpDetailModal(topUpId) {
+  const t = allRequestsHistoryCache.find(x => x._id === topUpId) ||
+            pendingTopUpsCache.find(x => x._id === topUpId);
+  if (!t) return;
+
+  const vendorName = t.vendorId ? `${t.vendorId.firstName} ${t.vendorId.lastName}` : 'Vendor';
+  const vendorEmail = t.vendorId?.email || 'N/A';
+  const vendorMobile = t.vendorId?.mobileNumber || 'N/A';
+  const dateStr = new Date(t.createdAt).toLocaleString('en-IN');
+  const reqAmountStr = `₹${(t.requestedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const approvedAmountStr = t.adminResponse?.approvedAmount ? `₹${t.adminResponse.approvedAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : reqAmountStr;
+
+  const assignedDests = t.adminResponse?.selectedDestinations || [];
+  const destsHtml = assignedDests.length > 0
+    ? assignedDests.map(d => {
+        if (!d) return '';
+        const isBank = d.type === 'bank' || d.destinationType === 'bank';
+        return `
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem; margin-top: 0.35rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>${isBank ? '🏦 ' + (d.bankName || d.name) : '👛 ' + (d.walletName || d.name)}</strong><br>
+              <small>${isBank ? `A/C: ${d.accountNumber} | IFSC: ${d.ifscCode} | Holder: ${d.accountHolderName}` : `UPI ID: ${d.walletId}`}</small>
+            </div>
+            ${d.qrCode ? `<a href="${d.qrCode}" target="_blank"><img src="${d.qrCode}" style="width: 40px; height: 40px; object-fit: contain; border-radius: 4px;" alt="QR"></a>` : ''}
+          </div>
+        `;
+      }).join('')
+    : '<p class="text-muted">No destinations assigned.</p>';
+
+  const confirmation = t.paymentConfirmationId;
+  const proofHtml = confirmation
+    ? `
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 0.65rem; margin-top: 0.5rem;">
+        <strong>UTR / Transaction ID:</strong> <code>${confirmation.transactionId}</code><br>
+        <strong>Amount Paid:</strong> ₹${(confirmation.amountPaid || 0).toLocaleString('en-IN')}<br>
+        <strong>Submitted:</strong> ${new Date(confirmation.createdAt).toLocaleString('en-IN')}<br>
+        ${confirmation.note ? `<strong>Vendor Note:</strong> <em>${confirmation.note}</em><br>` : ''}
+        ${confirmation.paymentProof ? `
+          <div style="margin-top: 0.5rem;">
+            <label>Payment Receipt:</label><br>
+            <a href="${confirmation.paymentProof}" target="_blank">
+              <img src="${confirmation.paymentProof}" style="max-height: 140px; border-radius: 6px; border: 1px solid #cbd5e1; margin-top: 0.25rem;">
+            </a>
+          </div>
+        ` : ''}
+      </div>
+    `
+    : '<p class="text-muted">Payment proof not submitted yet.</p>';
+
+  document.getElementById('topUpDetailContent').innerHTML = `
+    <div class="info-box mb-3">
+      <div class="flex-between">
+        <h4>Top-Up ${t.topUpId || t._id}</h4>
+        <span class="badge badge-${t.status}">${t.status.replace(/_/g, ' ')}</span>
+      </div>
+      <p style="margin-top: 0.35rem;"><strong>Vendor:</strong> ${vendorName} (${vendorEmail} | 📱 ${vendorMobile})</p>
+      <p><strong>Requested Amount:</strong> ${reqAmountStr} | <strong>Approved Amount:</strong> ${approvedAmountStr}</p>
+      <p><strong>Preferred Method:</strong> ${(t.preferredPaymentMethod || 'BANK').toUpperCase()} | <strong>Created:</strong> ${dateStr}</p>
+      ${t.notes ? `<p><strong>Vendor Request Note:</strong> <em>${t.notes}</em></p>` : ''}
+      ${t.rejectionReason ? `<p style="color: #dc2626;"><strong>Rejection Reason:</strong> <em>${t.rejectionReason}</em></p>` : ''}
+    </div>
+
+    <div class="detail-section">
+      <h4>🏢 Assigned Company Destinations (${assignedDests.length})</h4>
+      ${destsHtml}
+      ${t.adminResponse?.adminMessage ? `<p style="margin-top: 0.35rem;"><strong>Admin Instructions:</strong> <em>${t.adminResponse.adminMessage}</em></p>` : ''}
+    </div>
+
+    <div class="detail-section">
+      <h4>💳 Payment Proof & Verification</h4>
+      ${proofHtml}
+    </div>
+  `;
+
+  document.getElementById('topUpDetailModal').classList.remove('hidden');
+}
+
+function closeTopUpDetailModal() {
+  document.getElementById('topUpDetailModal').classList.add('hidden');
 }
 
 function closeVendorDetailModal() {
@@ -737,14 +990,31 @@ async function fetchAdminDestinations() {
         listEl.innerHTML = data.data.destinations.map(d => `
           <div class="item-card">
             <div class="item-info">
-              <h4>${d.destinationType === 'bank' ? `🏦 ${d.bankName} (${d.accountNumber})` : `👛 ${d.walletName} (${d.walletId})`}</h4>
-              <p>${d.destinationType === 'bank' ? `IFSC: <strong>${d.ifscCode}</strong> | Holder: ${d.accountHolderName}` : `UPI ID: <strong>${d.walletId}</strong>`}</p>
-              <div style="margin-top: 0.35rem;">
-                <span class="badge ${d.isActive ? 'badge-approved' : 'badge-rejected'}">${d.isActive ? 'Active' : 'Inactive'}</span>
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;">
+                <div>
+                  <h4>${d.destinationType === 'bank' ? `🏦 ${d.bankName || d.name} (${d.accountNumber})` : `👛 ${d.walletName || d.name} (${d.walletId})`}</h4>
+                  <p>${d.destinationType === 'bank' ? `IFSC: <strong>${d.ifscCode}</strong> | Holder: ${d.accountHolderName}` : `UPI ID: <strong>${d.walletId}</strong>`}</p>
+                  <div style="margin-top: 0.35rem;">
+                    <span class="badge ${d.isActive ? 'badge-approved' : 'badge-rejected'}">${d.isActive ? 'Active' : 'Inactive'}</span>
+                    ${d.dailyLimit ? `<small class="text-muted" style="margin-left: 0.5rem;">Daily: ₹${d.dailyLimit.toLocaleString('en-IN')}</small>` : ''}
+                  </div>
+                </div>
+                ${d.qrCode ? `
+                  <div style="text-align: center;">
+                    <a href="${d.qrCode}" target="_blank" title="Click to view full QR">
+                      <img src="${d.qrCode}" alt="Destination QR" style="width: 50px; height: 50px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 6px; padding: 2px; background: #fff;">
+                    </a>
+                    <br><small style="font-size: 0.7rem; color: #6b7280;">QR Code</small>
+                  </div>
+                ` : ''}
               </div>
             </div>
-            <div class="item-actions">
-              <button class="btn btn-sm btn-danger" onclick="deleteDestination('${d._id}')">Delete</button>
+            <div class="item-actions" style="display: flex; gap: 0.35rem; align-items: center;">
+              <button class="btn btn-sm btn-secondary" onclick="openEditDestinationModal('${d._id}')">✏️ Edit</button>
+              <button class="btn btn-sm ${d.isActive ? 'btn-warning' : 'btn-success'}" onclick="toggleDestinationActive('${d._id}')">
+                ${d.isActive ? '⏸️ Deactivate' : '✅ Activate'}
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="deleteDestination('${d._id}')">🗑️ Delete</button>
             </div>
           </div>
         `).join('');
@@ -776,48 +1046,167 @@ async function handleAddDestination(event) {
   const displayName = document.getElementById('destDisplayName')?.value.trim() ||
     (type === 'bank' ? document.getElementById('destBankName').value.trim() : document.getElementById('destWalletName').value.trim());
 
-  const payload = {
-    type: type,
-    destinationType: type,
-    name: displayName,
-    instructions: document.getElementById('destInstructions').value.trim() || undefined,
-    isActive: document.getElementById('destIsActive').checked
-  };
+  const formData = new FormData();
+  formData.append('type', type);
+  formData.append('destinationType', type);
+  formData.append('name', displayName);
+  
+  const instructions = document.getElementById('destInstructions').value.trim();
+  if (instructions) formData.append('instructions', instructions);
+  
+  formData.append('isActive', document.getElementById('destIsActive').checked);
+
+  const dailyLimit = document.getElementById('destDailyLimit').value.trim();
+  if (dailyLimit) formData.append('dailyLimit', dailyLimit);
 
   if (type === 'bank') {
-    payload.bankName = document.getElementById('destBankName').value.trim();
-    payload.accountNumber = document.getElementById('destAccountNumber').value.trim();
-    payload.ifscCode = document.getElementById('destIfsc').value.trim().toUpperCase();
-    payload.branchName = document.getElementById('destBranch').value.trim();
-    payload.accountHolderName = document.getElementById('destHolderName').value.trim();
-    if (!payload.name) payload.name = payload.bankName || 'Company Bank Account';
+    formData.append('bankName', document.getElementById('destBankName').value.trim());
+    formData.append('accountNumber', document.getElementById('destAccountNumber').value.trim());
+    formData.append('ifscCode', document.getElementById('destIfsc').value.trim().toUpperCase());
+    formData.append('branchName', document.getElementById('destBranch').value.trim());
+    formData.append('accountHolderName', document.getElementById('destHolderName').value.trim());
   } else {
-    payload.walletName = document.getElementById('destWalletName').value.trim();
-    payload.walletId = document.getElementById('destWalletId').value.trim();
-    payload.qrCode = document.getElementById('destWalletQr').value.trim() || undefined;
-    if (!payload.name) payload.name = payload.walletName || 'Company UPI Wallet';
+    formData.append('walletName', document.getElementById('destWalletName').value.trim());
+    formData.append('walletId', document.getElementById('destWalletId').value.trim());
+    const qrFile = document.getElementById('destWalletQr')?.files[0];
+    if (qrFile) {
+      formData.append('qrCode', qrFile);
+    }
   }
 
   try {
     const res = await fetch(`${API_BASE}/admin/payment-destinations`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${adminToken}`
       },
-      body: JSON.stringify(payload)
+      body: formData
     });
 
     const data = await res.json();
     if (data.success) {
-      showToast('Payment destination created!', 'success');
+      showToast('Payment destination created with QR code!', 'success');
       document.getElementById('addDestinationForm').reset();
+      toggleDestTypeFields();
       fetchAdminDestinations();
     } else {
       showToast(data.message || 'Error creating destination', 'error');
     }
   } catch (err) {
     showToast('Failed to add destination', 'error');
+  }
+}
+
+function openEditDestinationModal(id) {
+  const d = destinationsCache.find(x => x._id === id);
+  if (!d) return;
+
+  const isBank = d.destinationType === 'bank' || d.type === 'bank';
+  document.getElementById('editDestId').value = d._id;
+  document.getElementById('editDestType').value = isBank ? 'bank' : 'wallet';
+  document.getElementById('editDestDisplayName').value = d.name || '';
+  document.getElementById('editDestDailyLimit').value = d.dailyLimit || '';
+  document.getElementById('editDestInstructions').value = d.instructions || '';
+  document.getElementById('editDestIsActive').checked = Boolean(d.isActive);
+
+  if (isBank) {
+    document.getElementById('editDestBankFields').classList.remove('hidden');
+    document.getElementById('editDestWalletFields').classList.add('hidden');
+    document.getElementById('editDestBankName').value = d.bankName || '';
+    document.getElementById('editDestAccountNumber').value = d.accountNumber || '';
+    document.getElementById('editDestIfsc').value = d.ifscCode || '';
+    document.getElementById('editDestBranch').value = d.branchName || '';
+    document.getElementById('editDestHolderName').value = d.accountHolderName || '';
+  } else {
+    document.getElementById('editDestBankFields').classList.add('hidden');
+    document.getElementById('editDestWalletFields').classList.remove('hidden');
+    document.getElementById('editDestWalletName').value = d.walletName || '';
+    document.getElementById('editDestWalletId').value = d.walletId || '';
+    const qrInput = document.getElementById('editDestWalletQr');
+    if (qrInput) qrInput.value = '';
+    const qrCurrent = document.getElementById('editDestWalletQrCurrent');
+    if (qrCurrent) {
+      qrCurrent.innerHTML = d.qrCode 
+        ? `Current QR: <a href="${d.qrCode}" target="_blank" style="color: var(--primary); text-decoration: underline;">View Current</a> (Upload new image to replace)`
+        : 'No QR code currently set.';
+    }
+  }
+
+  document.getElementById('editDestinationModal').classList.remove('hidden');
+}
+
+function closeEditDestinationModal() {
+  document.getElementById('editDestinationModal').classList.add('hidden');
+}
+
+async function handleUpdateDestination(event) {
+  event.preventDefault();
+
+  const id = document.getElementById('editDestId').value;
+  const isBank = document.getElementById('editDestType').value === 'bank';
+
+  const formData = new FormData();
+  formData.append('name', document.getElementById('editDestDisplayName').value.trim());
+  formData.append('isActive', document.getElementById('editDestIsActive').checked);
+
+  const dailyLimit = document.getElementById('editDestDailyLimit').value.trim();
+  if (dailyLimit) formData.append('dailyLimit', dailyLimit);
+
+  const instructions = document.getElementById('editDestInstructions').value.trim();
+  formData.append('instructions', instructions);
+
+  if (isBank) {
+    formData.append('bankName', document.getElementById('editDestBankName').value.trim());
+    formData.append('accountNumber', document.getElementById('editDestAccountNumber').value.trim());
+    formData.append('ifscCode', document.getElementById('editDestIfsc').value.trim().toUpperCase());
+    formData.append('branchName', document.getElementById('editDestBranch').value.trim());
+    formData.append('accountHolderName', document.getElementById('editDestHolderName').value.trim());
+  } else {
+    formData.append('walletName', document.getElementById('editDestWalletName').value.trim());
+    formData.append('walletId', document.getElementById('editDestWalletId').value.trim());
+    const qrFile = document.getElementById('editDestWalletQr')?.files[0];
+    if (qrFile) {
+      formData.append('qrCode', qrFile);
+    }
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/payment-destinations/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Destination updated successfully!', 'success');
+      closeEditDestinationModal();
+      fetchAdminDestinations();
+    } else {
+      showToast(data.message || 'Update failed', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to update destination', 'error');
+  }
+}
+
+async function toggleDestinationActive(id) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/payment-destinations/${id}/toggle`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'Destination status updated', 'success');
+      fetchAdminDestinations();
+    } else {
+      showToast(data.message || 'Toggle failed', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to toggle status', 'error');
   }
 }
 
@@ -835,6 +1224,185 @@ async function deleteDestination(id) {
     }
   } catch (err) {
     showToast('Failed to delete destination', 'error');
+  }
+}
+
+/**
+ * SuperAdmin Vendor Bank Accounts & Wallets Management
+ */
+function openAdminEditVendorBankModal(vendorId, bankAccountId) {
+  const vendor = allVendorsCache.find(v => v._id === vendorId);
+  if (!vendor) return;
+
+  const bank = vendor.bankAccounts.find(b => b._id === bankAccountId);
+  if (!bank) return;
+
+  document.getElementById('adminBankVendorId').value = vendorId;
+  document.getElementById('adminBankAccountId').value = bankAccountId;
+  document.getElementById('adminBankName').value = bank.bankName || '';
+  document.getElementById('adminBankAccountNumber').value = bank.accountNumber || '';
+  document.getElementById('adminBankIfsc').value = bank.ifscCode || '';
+  document.getElementById('adminBankBranch').value = bank.branchName || '';
+  document.getElementById('adminBankHolderName').value = bank.accountHolderName || '';
+  document.getElementById('adminBankIsActive').checked = bank.isActive !== false;
+  document.getElementById('adminBankIsDefault').checked = Boolean(bank.isDefault);
+
+  document.getElementById('adminEditVendorBankModal').classList.remove('hidden');
+}
+
+function closeAdminEditVendorBankModal() {
+  document.getElementById('adminEditVendorBankModal').classList.add('hidden');
+}
+
+async function handleAdminUpdateVendorBank(event) {
+  event.preventDefault();
+
+  const vendorId = document.getElementById('adminBankVendorId').value;
+  const bankAccountId = document.getElementById('adminBankAccountId').value;
+
+  const payload = {
+    bankName: document.getElementById('adminBankName').value.trim(),
+    accountNumber: document.getElementById('adminBankAccountNumber').value.trim(),
+    ifscCode: document.getElementById('adminBankIfsc').value.trim().toUpperCase(),
+    branchName: document.getElementById('adminBankBranch').value.trim(),
+    accountHolderName: document.getElementById('adminBankHolderName').value.trim(),
+    isActive: document.getElementById('adminBankIsActive').checked,
+    isDefault: document.getElementById('adminBankIsDefault').checked
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/bank-accounts/${bankAccountId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Vendor bank account updated successfully!', 'success');
+      closeAdminEditVendorBankModal();
+      await fetchAdminVendors();
+      openVendorDetailModal(vendorId);
+    } else {
+      showToast(data.message || 'Update failed', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to update vendor bank account', 'error');
+  }
+}
+
+async function adminToggleVendorBank(vendorId, bankAccountId) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/bank-accounts/${bankAccountId}/toggle`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'Bank status updated', 'success');
+      await fetchAdminVendors();
+      openVendorDetailModal(vendorId);
+    } else {
+      showToast(data.message || 'Toggle failed', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to toggle bank status', 'error');
+  }
+}
+
+function openAdminEditVendorWalletModal(vendorId, walletSubId) {
+  const vendor = allVendorsCache.find(v => v._id === vendorId);
+  if (!vendor) return;
+
+  const wallet = vendor.wallets.find(w => w._id === walletSubId);
+  if (!wallet) return;
+
+  document.getElementById('adminWalletVendorId').value = vendorId;
+  document.getElementById('adminWalletSubId').value = walletSubId;
+  document.getElementById('adminWalletName').value = wallet.walletName || '';
+  document.getElementById('adminWalletId').value = wallet.walletId || '';
+  
+  const qrInput = document.getElementById('adminWalletQrFile');
+  if (qrInput) qrInput.value = '';
+
+  const qrCurrent = document.getElementById('adminWalletQrCurrent');
+  if (qrCurrent) {
+    qrCurrent.innerHTML = wallet.qrCode 
+      ? `Current QR: <a href="${wallet.qrCode}" target="_blank" style="color: var(--primary); text-decoration: underline;">View Current</a> (Upload new image to replace)`
+      : 'No QR code currently uploaded.';
+  }
+
+  document.getElementById('adminWalletIsActive').checked = wallet.isActive !== false;
+  document.getElementById('adminWalletIsDefault').checked = Boolean(wallet.isDefault);
+
+  document.getElementById('adminEditVendorWalletModal').classList.remove('hidden');
+}
+
+function closeAdminEditVendorWalletModal() {
+  document.getElementById('adminEditVendorWalletModal').classList.add('hidden');
+}
+
+async function handleAdminUpdateVendorWallet(event) {
+  event.preventDefault();
+
+  const vendorId = document.getElementById('adminWalletVendorId').value;
+  const walletSubId = document.getElementById('adminWalletSubId').value;
+
+  const formData = new FormData();
+  formData.append('walletName', document.getElementById('adminWalletName').value.trim());
+  formData.append('walletId', document.getElementById('adminWalletId').value.trim());
+  formData.append('isActive', document.getElementById('adminWalletIsActive').checked);
+  formData.append('isDefault', document.getElementById('adminWalletIsDefault').checked);
+
+  const qrFile = document.getElementById('adminWalletQrFile')?.files[0];
+  if (qrFile) {
+    formData.append('qrCode', qrFile);
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/wallets/${walletSubId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Vendor wallet updated successfully!', 'success');
+      closeAdminEditVendorWalletModal();
+      await fetchAdminVendors();
+      openVendorDetailModal(vendorId);
+    } else {
+      showToast(data.message || 'Update failed', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to update vendor wallet', 'error');
+  }
+}
+
+async function adminToggleVendorWallet(vendorId, walletSubId) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/wallets/${walletSubId}/toggle`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'Wallet status updated', 'success');
+      await fetchAdminVendors();
+      openVendorDetailModal(vendorId);
+    } else {
+      showToast(data.message || 'Toggle failed', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to toggle wallet status', 'error');
   }
 }
 
