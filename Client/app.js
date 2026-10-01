@@ -13,6 +13,7 @@ let cachedTopUps = [];
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
   checkServerHealth();
+  initTransactionIdChecker();
   if (currentToken) {
     loadVendorProfile();
   } else {
@@ -475,14 +476,27 @@ async function fetchVendorTopUps() {
       cachedTopUps = data.data.topUps;
       listEl.innerHTML = data.data.topUps.map(t => {
         const dateStr = new Date(t.createdAt).toLocaleString('en-IN');
-        const amountStr = `₹${(t.requestedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        const reqAmount = Number(t.requestedAmount || 0);
+        const hasApprovedAmount = t.adminResponse?.approvedAmount !== undefined && t.adminResponse?.approvedAmount !== null;
+        const approvedAmount = hasApprovedAmount ? Number(t.adminResponse.approvedAmount) : null;
+        const effectiveAmount = approvedAmount !== null ? approvedAmount : reqAmount;
         const assignedDests = t.adminResponse?.selectedDestinations || (t.paymentDestination ? [t.paymentDestination] : []);
+
+        let headerAmountHtml = '';
+        if (hasApprovedAmount && approvedAmount !== reqAmount) {
+          headerAmountHtml = `
+            <h4>Top-Up ${t.topUpId || t._id.slice(-8)} — <span style="color: #15803d; font-weight: 700;">₹${approvedAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span> <span class="badge badge-success" style="font-size: 0.72rem; vertical-align: middle;">Approved Amount</span></h4>
+            <p class="text-muted" style="margin-top: -2px; margin-bottom: 6px;"><small>Requested Amount: <strong>₹${reqAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></small></p>
+          `;
+        } else {
+          headerAmountHtml = `<h4>Top-Up ${t.topUpId || t._id.slice(-8)} — ₹${effectiveAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h4>`;
+        }
 
         let destInfoHtml = '';
         let actionBtnHtml = '';
 
         if (t.status === 'PENDING_ADMIN_RESPONSE') {
-          destInfoHtml = `<p style="color: #92400e;">⏳ Waiting for SuperAdmin to review and assign company payment destinations...</p>`;
+          destInfoHtml = `<p style="color: #92400e; margin-top: 0.35rem;">⏳ Waiting for SuperAdmin to review and assign company payment destinations...</p>`;
         } else if (t.status === 'AWAITING_PAYMENT') {
           if (assignedDests.length > 0) {
             const destCards = assignedDests.map(dest => {
@@ -511,20 +525,34 @@ async function fetchVendorTopUps() {
             }).join('');
 
             destInfoHtml = `
-              <div class="info-box mt-2" style="background: #f0fdf4; border-color: #bbf7d0; color: #166534;">
-                <strong>💳 Company Payment Destination(s) Assigned (${assignedDests.length}):</strong><br>
+              <div class="info-box mt-2" style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; color: #166534; padding: 0.85rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 1px dashed #bbf7d0;">
+                  <div>
+                    <span style="font-size: 0.9rem; font-weight: 600;">💰 Approved Amount to Transfer:</span>
+                    <span style="font-size: 1.2rem; font-weight: 800; color: #15803d; margin-left: 4px;">₹${effectiveAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    ${hasApprovedAmount && approvedAmount !== reqAmount ? `<span style="font-size: 0.8rem; color: #4b5563; margin-left: 6px;">(Requested: ₹${reqAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })})</span>` : ''}
+                  </div>
+                  <span class="badge badge-success">SuperAdmin Assigned</span>
+                </div>
+                <strong>💳 Transfer to Any of the Following Company Destination(s) (${assignedDests.length}):</strong><br>
                 ${destCards}
-                ${t.adminResponse?.adminMessage ? `<p style="margin-top: 0.35rem;"><strong>Admin Note:</strong> <em>${t.adminResponse.adminMessage}</em></p>` : ''}
+                ${t.adminResponse?.adminMessage ? `<p style="margin-top: 0.4rem; background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid #dcfce7;"><strong>Admin Note:</strong> <em>${t.adminResponse.adminMessage}</em></p>` : ''}
               </div>
             `;
           }
           actionBtnHtml = `<button class="btn btn-sm btn-success" onclick="openPaymentProofModal('${t._id}')">💳 Pay & Submit Proof</button>`;
         } else if (t.status === 'PAYMENT_SUBMITTED') {
-          destInfoHtml = `<p style="color: #854d0e;">⏳ Payment proof submitted. Verification in progress by SuperAdmin.</p>`;
+          destInfoHtml = `
+            <p style="color: #854d0e; margin-top: 0.35rem;">⏳ Payment proof submitted. Verification in progress by SuperAdmin.</p>
+            ${hasApprovedAmount && approvedAmount !== reqAmount ? `<p style="font-size: 0.85rem; color: #15803d;"><strong>Approved Amount:</strong> ₹${approvedAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} <span class="text-muted">(Requested: ₹${reqAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })})</span></p>` : ''}
+          `;
         } else if (t.status === 'APPROVED' || t.status === 'COMPLETED') {
-          destInfoHtml = `<p style="color: #059669;">✅ Approved & Credited to your wallet balance.</p>`;
+          destInfoHtml = `
+            <p style="color: #059669; margin-top: 0.35rem;">✅ Approved & Credited to your wallet balance.</p>
+            ${hasApprovedAmount && approvedAmount !== reqAmount ? `<p style="font-size: 0.85rem; color: #15803d;"><strong>Approved Credited Amount:</strong> ₹${approvedAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} <span class="text-muted">(Requested: ₹${reqAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })})</span></p>` : ''}
+          `;
         } else if (t.status === 'REJECTED') {
-          destInfoHtml = `<p style="color: #dc2626;">❌ Rejected ${t.rejectionReason ? `(Reason: ${t.rejectionReason})` : ''}</p>`;
+          destInfoHtml = `<p style="color: #dc2626; margin-top: 0.35rem;">❌ Rejected ${t.rejectionReason ? `(Reason: ${t.rejectionReason})` : ''}</p>`;
         }
 
         // Display vendor's selected banks/wallets
@@ -545,7 +573,7 @@ async function fetchVendorTopUps() {
           <div class="item-card">
             <div class="item-info">
               <div class="flex-between">
-                <h4>Top-Up ${t.topUpId || t._id.slice(-8)} — ${amountStr}</h4>
+                <div>${headerAmountHtml}</div>
                 <span class="badge badge-${t.status}">${t.status.replace(/_/g, ' ')}</span>
               </div>
               <p>Preferred Method: <strong class="badge badge-info">${t.preferredPaymentMethod.toUpperCase()}</strong> | Requested: ${dateStr}</p>
@@ -566,13 +594,105 @@ async function fetchVendorTopUps() {
   }
 }
 
+let txCheckTimeout = null;
+let isCurrentTxIdValid = false;
+
+function initTransactionIdChecker() {
+  const txInput = document.getElementById('proofTransactionId');
+  const feedbackEl = document.getElementById('proofTxIdFeedback');
+  const submitBtn = document.getElementById('btnSubmitProof');
+  if (!txInput || !feedbackEl) return;
+
+  txInput.addEventListener('input', () => {
+    const val = txInput.value.trim();
+    clearTimeout(txCheckTimeout);
+
+    if (!val) {
+      feedbackEl.style.display = 'none';
+      feedbackEl.textContent = '';
+      txInput.style.borderColor = '';
+      if (submitBtn) submitBtn.disabled = true;
+      isCurrentTxIdValid = false;
+      return;
+    }
+
+    if (val.length < 3) {
+      feedbackEl.style.display = 'block';
+      feedbackEl.style.color = '#d97706';
+      feedbackEl.innerHTML = '⚠️ Transaction ID / UTR must be at least 3 characters.';
+      txInput.style.borderColor = '#f59e0b';
+      if (submitBtn) submitBtn.disabled = true;
+      isCurrentTxIdValid = false;
+      return;
+    }
+
+    feedbackEl.style.display = 'block';
+    feedbackEl.style.color = '#6b7280';
+    feedbackEl.innerHTML = '🔄 Verifying Transaction ID in database...';
+    if (submitBtn) submitBtn.disabled = true;
+
+    txCheckTimeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/vendors/topups/check-transaction-id?transactionId=${encodeURIComponent(val)}`, {
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        const data = await res.json();
+
+        if (data.success && data.data?.isUnique) {
+          feedbackEl.style.display = 'block';
+          feedbackEl.style.color = '#15803d';
+          feedbackEl.innerHTML = `✅ <strong>Valid:</strong> Transaction ID is unique & available for submission.`;
+          txInput.style.borderColor = '#16a34a';
+          if (submitBtn) submitBtn.disabled = false;
+          isCurrentTxIdValid = true;
+        } else {
+          feedbackEl.style.display = 'block';
+          feedbackEl.style.color = '#dc2626';
+          feedbackEl.innerHTML = `❌ <strong>Invalid ID:</strong> ${data.data?.message || 'This Transaction ID has already been used in the database. Please enter a unique ID.'}`;
+          txInput.style.borderColor = '#dc2626';
+          if (submitBtn) submitBtn.disabled = true;
+          isCurrentTxIdValid = false;
+        }
+      } catch (err) {
+        console.error('Error checking transaction id:', err);
+        feedbackEl.style.display = 'block';
+        feedbackEl.style.color = '#dc2626';
+        feedbackEl.innerHTML = '❌ Error verifying Transaction ID with server.';
+        if (submitBtn) submitBtn.disabled = true;
+        isCurrentTxIdValid = false;
+      }
+    }, 300);
+  });
+}
+
 function openPaymentProofModal(topUpId) {
   const topUp = cachedTopUps.find(t => t._id === topUpId);
   if (!topUp) return;
 
+  const reqAmount = Number(topUp.requestedAmount || 0);
+  const hasApprovedAmount = topUp.adminResponse?.approvedAmount !== undefined && topUp.adminResponse?.approvedAmount !== null;
+  const approvedAmount = hasApprovedAmount ? Number(topUp.adminResponse.approvedAmount) : null;
+  const effectiveAmount = approvedAmount !== null ? approvedAmount : reqAmount;
+
   document.getElementById('proofTopUpId').value = topUp._id;
-  document.getElementById('proofAmountPaid').value = topUp.adminResponse?.approvedAmount || topUp.requestedAmount;
-  document.getElementById('proofTransactionId').value = '';
+  document.getElementById('proofAmountPaid').value = effectiveAmount;
+  
+  const txInput = document.getElementById('proofTransactionId');
+  txInput.value = '';
+  txInput.style.borderColor = '';
+
+  const feedbackEl = document.getElementById('proofTxIdFeedback');
+  if (feedbackEl) {
+    feedbackEl.style.display = 'none';
+    feedbackEl.textContent = '';
+  }
+
+  const submitBtn = document.getElementById('btnSubmitProof');
+  if (submitBtn) {
+    submitBtn.disabled = true; // Required unique transaction ID validation before enabling
+  }
+  isCurrentTxIdValid = false;
+
   document.getElementById('proofFile').value = '';
   document.getElementById('proofNote').value = '';
 
@@ -591,9 +711,17 @@ function openPaymentProofModal(topUpId) {
     destSelect.innerHTML = '<option value="">(No destination found)</option>';
   }
 
-  const destSummary = assignedDests.length > 0
-    ? `<strong>Available Assigned Destinations:</strong> ${assignedDests.length} option(s)<br><strong>Approved Amount:</strong> ₹${(topUp.adminResponse?.approvedAmount || topUp.requestedAmount).toLocaleString('en-IN')}`
-    : `<strong>Amount to Transfer:</strong> ₹${topUp.requestedAmount.toLocaleString('en-IN')}`;
+  const destSummary = `
+    <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 0.65rem 0.85rem; margin-bottom: 0.75rem;">
+      <div style="font-size: 0.95rem; font-weight: 700; color: #166534;">
+        💰 Approved Amount to Transfer: <span style="font-size: 1.2rem; color: #15803d; font-weight: 800;">₹${effectiveAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+        ${hasApprovedAmount && approvedAmount !== reqAmount ? `<span style="font-size: 0.8rem; font-weight: normal; color: #4b5563; margin-left: 6px;">(Requested: ₹${reqAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })})</span>` : ''}
+      </div>
+      <div style="font-size: 0.85rem; color: #374151; margin-top: 0.35rem;">
+        Available Company Destinations: <strong>${assignedDests.length} option(s)</strong>
+      </div>
+    </div>
+  `;
 
   document.getElementById('modalTopUpDetails').innerHTML = destSummary;
   document.getElementById('paymentProofModal').classList.remove('hidden');
@@ -615,6 +743,16 @@ async function handleSubmitPaymentProof(event) {
 
   if (!paymentDestinationId) {
     showToast('Please select the destination you transferred to', 'error');
+    return;
+  }
+
+  if (!transactionId) {
+    showToast('Please enter transaction ID / UTR reference', 'error');
+    return;
+  }
+
+  if (isCurrentTxIdValid === false) {
+    showToast('Please enter a valid unique Transaction ID before submitting', 'error');
     return;
   }
 

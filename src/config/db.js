@@ -12,6 +12,10 @@ const connectDB = async () => {
     // Seed default Vendor Tiers if none exist
     const { seedDefaultTiers } = require('../services/tierService');
     await seedDefaultTiers();
+
+    // Sync database indexes
+    const PaymentConfirmation = require('../models/paymentConfirmationModel');
+    await PaymentConfirmation.syncIndexes();
   } catch (error) {
     console.error(`❌ MongoDB Connection Error: ${error.message}`);
     console.warn(`⚠️  Ensure MongoDB is running locally (or provide a valid MONGO_URI in .env). Server is still running...`);

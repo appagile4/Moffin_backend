@@ -15,11 +15,7 @@ const {
   approveVendor,
   rejectVendor,
   activateVendor,
-  deactivateVendor,
-  adminUpdateVendorBankAccount,
-  adminToggleVendorBankAccount,
-  adminUpdateVendorWallet,
-  adminToggleVendorWallet
+  deactivateVendor
 } = require('../controllers/vendorController');
 
 // TopUp Management
@@ -90,41 +86,6 @@ router.patch('/vendors/:vendorId/approve', authMiddleware, superAdminAuth, valid
 router.patch('/vendors/:vendorId/reject', authMiddleware, superAdminAuth, validateObjectId('vendorId'), rejectVendor);
 router.patch('/vendors/:vendorId/activate', authMiddleware, superAdminAuth, validateObjectId('vendorId'), activateVendor);
 router.patch('/vendors/:vendorId/deactivate', authMiddleware, superAdminAuth, validateObjectId('vendorId'), deactivateVendor);
-
-// Admin: Edit Vendor Bank Accounts & Wallets
-router.patch(
-  '/vendors/:vendorId/bank-accounts/:bankAccountId',
-  authMiddleware,
-  superAdminAuth,
-  validateObjectId('vendorId'),
-  validateObjectId('bankAccountId'),
-  adminUpdateVendorBankAccount
-);
-router.patch(
-  '/vendors/:vendorId/bank-accounts/:bankAccountId/toggle',
-  authMiddleware,
-  superAdminAuth,
-  validateObjectId('vendorId'),
-  validateObjectId('bankAccountId'),
-  adminToggleVendorBankAccount
-);
-router.patch(
-  '/vendors/:vendorId/wallets/:walletSubId',
-  authMiddleware,
-  superAdminAuth,
-  validateObjectId('vendorId'),
-  validateObjectId('walletSubId'),
-  upload.single('qrCode'),
-  adminUpdateVendorWallet
-);
-router.patch(
-  '/vendors/:vendorId/wallets/:walletSubId/toggle',
-  authMiddleware,
-  superAdminAuth,
-  validateObjectId('vendorId'),
-  validateObjectId('walletSubId'),
-  adminToggleVendorWallet
-);
 
 // =============================================================================
 // 3. TOP-UP REQUEST MANAGEMENT

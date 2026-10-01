@@ -298,11 +298,31 @@ const adminRejectPayment = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Check if a transaction ID is available / unique in real-time
+ * @route   GET /api/vendors/topups/check-transaction-id
+ * @access  Private (Vendor)
+ */
+const checkTransactionIdAvailability = async (req, res) => {
+  try {
+    const { transactionId } = req.query;
+    if (!transactionId || !transactionId.trim()) {
+      return sendError(res, 400, 'Transaction ID is required');
+    }
+    const result = await topUpService.checkTransactionIdAvailable(transactionId);
+    return sendSuccess(res, 200, 'Transaction ID status', result);
+  } catch (error) {
+    console.error('checkTransactionIdAvailability Error:', error.message);
+    return sendError(res, 500, 'Failed to verify transaction ID');
+  }
+};
+
 module.exports = {
   // Vendor
   createTopUp,
   getVendorTopUps,
   getTopUpById,
+  checkTransactionIdAvailability,
   submitPaymentConfirmation,
   getVendorConfirmations,
   getPaymentConfirmationById,

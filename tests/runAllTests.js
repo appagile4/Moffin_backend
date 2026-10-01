@@ -56,6 +56,8 @@ async function runTests() {
   await mongoose.connect(mongoUri);
   console.log(`Connected to MongoDB: ${mongoose.connection.host}/${mongoose.connection.name}\n`);
 
+  await PaymentConfirmation.syncIndexes();
+
   // Setup seed tiers
   await tierService.seedDefaultTiers();
 
@@ -279,7 +281,37 @@ async function runTests() {
     'Rejected payment does not increase vendor balance'
   );
 
-  // TEST 11: Wallet ledger is created correctly
+  // TEST 11: Duplicate transactionId across any vendor or confirmation is rejected
+  let duplicateTxError = false;
+  try {
+    await PaymentConfirmation.create({
+      confirmationId: `CONF-TEST-${timestamp}-DUP`,
+      topUpRequestId: topUpB._id,
+      vendorId: vendorB._id,
+      amountPaid: 10000,
+      paymentDestinationId: companyBank._id,
+      paymentMethod: 'bank',
+      transactionId: `UTR${timestamp}001`, // same as confirmationA
+      paymentProof: 'https://res.cloudinary.com/test/image/upload/dup.jpg',
+      status: 'PAYMENT_SUBMITTED'
+    });
+  } catch (err) {
+    duplicateTxError = true;
+  }
+  assert(
+    duplicateTxError,
+    'Duplicate transactionId across confirmations/vendors is rejected (Transaction ID is globally unique)'
+  );
+
+  // TEST 12: Real-time checkTransactionIdAvailable correctly reports existing vs fresh transaction ID
+  const checkExisting = await topUpService.checkTransactionIdAvailable(`UTR${timestamp}001`);
+  const checkFresh = await topUpService.checkTransactionIdAvailable(`UTR${timestamp}FRESH999`);
+  assert(
+    checkExisting.isUnique === false && checkFresh.isUnique === true,
+    'Real-time transaction ID checker validates uniqueness in database (returns false if exists, true if fresh)'
+  );
+
+  // TEST 13: Wallet ledger is created correctly
   const ledgerA = await walletService.getWalletTransactions(vendorA._id);
   const creditTx = ledgerA.transactions.find((t) => t.transactionType === 'CREDIT_TOPUP');
   assert(

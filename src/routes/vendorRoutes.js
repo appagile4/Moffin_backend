@@ -24,6 +24,7 @@ const {
   createTopUp,
   getVendorTopUps,
   getTopUpById,
+  checkTransactionIdAvailability,
   submitPaymentConfirmation,
   getVendorConfirmations,
   getPaymentConfirmationById
@@ -128,6 +129,7 @@ router.patch(
 // =============================================================================
 router.post('/topups', authMiddleware, vendorAuth, createTopUp);
 router.get('/topups', authMiddleware, vendorAuth, getVendorTopUps);
+router.get('/topups/check-transaction-id', authMiddleware, vendorAuth, checkTransactionIdAvailability);
 router.get('/topups/:id', authMiddleware, vendorAuth, validateObjectId('id'), getTopUpById);
 
 // =============================================================================

@@ -39,6 +39,7 @@ const paymentConfirmationSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Transaction reference/UTR number is required'],
       trim: true,
+      unique: true,
       index: true
     },
     transactionDate: {
@@ -86,7 +87,6 @@ const paymentConfirmationSchema = new mongoose.Schema(
 );
 
 paymentConfirmationSchema.index({ vendorId: 1, status: 1 });
-paymentConfirmationSchema.index({ transactionId: 1, vendorId: 1 }, { unique: true });
 
 const PaymentConfirmation = mongoose.model('PaymentConfirmation', paymentConfirmationSchema);
 

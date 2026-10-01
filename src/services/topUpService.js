@@ -339,13 +339,12 @@ const submitPaymentConfirmation = async (
     throw new Error('Payment screenshot/proof image is required');
   }
 
-  // Check duplicate transaction reference for this vendor
+  // Check duplicate transaction reference globally across all confirmations
   const existingTx = await PaymentConfirmation.findOne({
-    transactionId: transactionId.trim(),
-    vendorId
+    transactionId: transactionId.trim()
   });
   if (existingTx) {
-    throw new Error('A payment confirmation with this transaction reference has already been submitted');
+    throw new Error('This transaction reference (UTR/TxID) has already been submitted and must be unique');
   }
 
   // Verify selected payment destination
@@ -582,6 +581,28 @@ const getPaymentConfirmationById = async (id, vendorId = null) => {
   return confirmation;
 };
 
+/**
+ * 11. Real-time check if transaction ID / UTR is available & unique
+ */
+const checkTransactionIdAvailable = async (transactionId) => {
+  if (!transactionId || !transactionId.trim()) {
+    return { isUnique: false, message: 'Transaction ID cannot be empty' };
+  }
+  const existing = await PaymentConfirmation.findOne({
+    transactionId: transactionId.trim()
+  });
+  if (existing) {
+    return {
+      isUnique: false,
+      message: 'Invalid: This Transaction ID / UTR reference has already been used in the system.'
+    };
+  }
+  return {
+    isUnique: true,
+    message: 'Valid: Transaction ID is unique and available.'
+  };
+};
+
 module.exports = {
   createTopUpRequest,
   getVendorTopUps,
@@ -592,5 +613,6 @@ module.exports = {
   adminApprovePayment,
   adminRejectPayment,
   getPaymentConfirmations,
-  getPaymentConfirmationById
+  getPaymentConfirmationById,
+  checkTransactionIdAvailable
 };

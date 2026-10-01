@@ -589,17 +589,11 @@ function openVendorDetailModal(vendorId) {
     ? v.bankAccounts.map(b => `
         <div class="item-card mb-2" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <div>
-            <p><strong>${b.bankName}</strong> | A/C: ${b.accountNumber} | IFSC: ${b.ifscCode} | Holder: ${b.accountHolderName}</p>
+            <p><strong>${b.bankName}</strong> | A/C: <code>${b.accountNumber}</code> | IFSC: <code>${b.ifscCode}</code> | Holder: ${b.accountHolderName}</p>
             <div style="margin-top: 0.25rem;">
               ${b.isDefault ? '<span class="badge badge-default">Default</span>' : ''}
-              <span class="badge ${b.isActive !== false ? 'badge-approved' : 'badge-rejected'}">${b.isActive !== false ? 'Active' : 'Inactive'}</span>
+              ${b.branchName ? `<small class="text-muted">Branch: ${b.branchName}</small>` : ''}
             </div>
-          </div>
-          <div style="display: flex; gap: 0.35rem;">
-            <button class="btn btn-sm btn-secondary" onclick="openAdminEditVendorBankModal('${v._id}', '${b._id}')">✏️ Edit</button>
-            <button class="btn btn-sm ${b.isActive !== false ? 'btn-warning' : 'btn-success'}" onclick="adminToggleVendorBank('${v._id}', '${b._id}')">
-              ${b.isActive !== false ? '⏸️ Deactivate' : '✅ Activate'}
-            </button>
           </div>
         </div>
       `).join('')
@@ -615,18 +609,11 @@ function openVendorDetailModal(vendorId) {
               </a>
             ` : ''}
             <div>
-              <p><strong>${w.walletName}</strong> | VPA/ID: ${w.walletId}</p>
+              <p><strong>${w.walletName}</strong> | VPA/ID: <code>${w.walletId}</code></p>
               <div style="margin-top: 0.25rem;">
                 ${w.isDefault ? '<span class="badge badge-default">Default</span>' : ''}
-                <span class="badge ${w.isActive !== false ? 'badge-approved' : 'badge-rejected'}">${w.isActive !== false ? 'Active' : 'Inactive'}</span>
               </div>
             </div>
-          </div>
-          <div style="display: flex; gap: 0.35rem;">
-            <button class="btn btn-sm btn-secondary" onclick="openAdminEditVendorWalletModal('${v._id}', '${w._id}')">✏️ Edit</button>
-            <button class="btn btn-sm ${w.isActive !== false ? 'btn-warning' : 'btn-success'}" onclick="adminToggleVendorWallet('${v._id}', '${w._id}')">
-              ${w.isActive !== false ? '⏸️ Deactivate' : '✅ Activate'}
-            </button>
           </div>
         </div>
       `).join('')
@@ -1224,185 +1211,6 @@ async function deleteDestination(id) {
     }
   } catch (err) {
     showToast('Failed to delete destination', 'error');
-  }
-}
-
-/**
- * SuperAdmin Vendor Bank Accounts & Wallets Management
- */
-function openAdminEditVendorBankModal(vendorId, bankAccountId) {
-  const vendor = allVendorsCache.find(v => v._id === vendorId);
-  if (!vendor) return;
-
-  const bank = vendor.bankAccounts.find(b => b._id === bankAccountId);
-  if (!bank) return;
-
-  document.getElementById('adminBankVendorId').value = vendorId;
-  document.getElementById('adminBankAccountId').value = bankAccountId;
-  document.getElementById('adminBankName').value = bank.bankName || '';
-  document.getElementById('adminBankAccountNumber').value = bank.accountNumber || '';
-  document.getElementById('adminBankIfsc').value = bank.ifscCode || '';
-  document.getElementById('adminBankBranch').value = bank.branchName || '';
-  document.getElementById('adminBankHolderName').value = bank.accountHolderName || '';
-  document.getElementById('adminBankIsActive').checked = bank.isActive !== false;
-  document.getElementById('adminBankIsDefault').checked = Boolean(bank.isDefault);
-
-  document.getElementById('adminEditVendorBankModal').classList.remove('hidden');
-}
-
-function closeAdminEditVendorBankModal() {
-  document.getElementById('adminEditVendorBankModal').classList.add('hidden');
-}
-
-async function handleAdminUpdateVendorBank(event) {
-  event.preventDefault();
-
-  const vendorId = document.getElementById('adminBankVendorId').value;
-  const bankAccountId = document.getElementById('adminBankAccountId').value;
-
-  const payload = {
-    bankName: document.getElementById('adminBankName').value.trim(),
-    accountNumber: document.getElementById('adminBankAccountNumber').value.trim(),
-    ifscCode: document.getElementById('adminBankIfsc').value.trim().toUpperCase(),
-    branchName: document.getElementById('adminBankBranch').value.trim(),
-    accountHolderName: document.getElementById('adminBankHolderName').value.trim(),
-    isActive: document.getElementById('adminBankIsActive').checked,
-    isDefault: document.getElementById('adminBankIsDefault').checked
-  };
-
-  try {
-    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/bank-accounts/${bankAccountId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${adminToken}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      showToast('Vendor bank account updated successfully!', 'success');
-      closeAdminEditVendorBankModal();
-      await fetchAdminVendors();
-      openVendorDetailModal(vendorId);
-    } else {
-      showToast(data.message || 'Update failed', 'error');
-    }
-  } catch (err) {
-    showToast('Failed to update vendor bank account', 'error');
-  }
-}
-
-async function adminToggleVendorBank(vendorId, bankAccountId) {
-  try {
-    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/bank-accounts/${bankAccountId}/toggle`, {
-      method: 'PATCH',
-      headers: { 'Authorization': `Bearer ${adminToken}` }
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      showToast(data.message || 'Bank status updated', 'success');
-      await fetchAdminVendors();
-      openVendorDetailModal(vendorId);
-    } else {
-      showToast(data.message || 'Toggle failed', 'error');
-    }
-  } catch (err) {
-    showToast('Failed to toggle bank status', 'error');
-  }
-}
-
-function openAdminEditVendorWalletModal(vendorId, walletSubId) {
-  const vendor = allVendorsCache.find(v => v._id === vendorId);
-  if (!vendor) return;
-
-  const wallet = vendor.wallets.find(w => w._id === walletSubId);
-  if (!wallet) return;
-
-  document.getElementById('adminWalletVendorId').value = vendorId;
-  document.getElementById('adminWalletSubId').value = walletSubId;
-  document.getElementById('adminWalletName').value = wallet.walletName || '';
-  document.getElementById('adminWalletId').value = wallet.walletId || '';
-  
-  const qrInput = document.getElementById('adminWalletQrFile');
-  if (qrInput) qrInput.value = '';
-
-  const qrCurrent = document.getElementById('adminWalletQrCurrent');
-  if (qrCurrent) {
-    qrCurrent.innerHTML = wallet.qrCode 
-      ? `Current QR: <a href="${wallet.qrCode}" target="_blank" style="color: var(--primary); text-decoration: underline;">View Current</a> (Upload new image to replace)`
-      : 'No QR code currently uploaded.';
-  }
-
-  document.getElementById('adminWalletIsActive').checked = wallet.isActive !== false;
-  document.getElementById('adminWalletIsDefault').checked = Boolean(wallet.isDefault);
-
-  document.getElementById('adminEditVendorWalletModal').classList.remove('hidden');
-}
-
-function closeAdminEditVendorWalletModal() {
-  document.getElementById('adminEditVendorWalletModal').classList.add('hidden');
-}
-
-async function handleAdminUpdateVendorWallet(event) {
-  event.preventDefault();
-
-  const vendorId = document.getElementById('adminWalletVendorId').value;
-  const walletSubId = document.getElementById('adminWalletSubId').value;
-
-  const formData = new FormData();
-  formData.append('walletName', document.getElementById('adminWalletName').value.trim());
-  formData.append('walletId', document.getElementById('adminWalletId').value.trim());
-  formData.append('isActive', document.getElementById('adminWalletIsActive').checked);
-  formData.append('isDefault', document.getElementById('adminWalletIsDefault').checked);
-
-  const qrFile = document.getElementById('adminWalletQrFile')?.files[0];
-  if (qrFile) {
-    formData.append('qrCode', qrFile);
-  }
-
-  try {
-    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/wallets/${walletSubId}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${adminToken}`
-      },
-      body: formData
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      showToast('Vendor wallet updated successfully!', 'success');
-      closeAdminEditVendorWalletModal();
-      await fetchAdminVendors();
-      openVendorDetailModal(vendorId);
-    } else {
-      showToast(data.message || 'Update failed', 'error');
-    }
-  } catch (err) {
-    showToast('Failed to update vendor wallet', 'error');
-  }
-}
-
-async function adminToggleVendorWallet(vendorId, walletSubId) {
-  try {
-    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/wallets/${walletSubId}/toggle`, {
-      method: 'PATCH',
-      headers: { 'Authorization': `Bearer ${adminToken}` }
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      showToast(data.message || 'Wallet status updated', 'success');
-      await fetchAdminVendors();
-      openVendorDetailModal(vendorId);
-    } else {
-      showToast(data.message || 'Toggle failed', 'error');
-    }
-  } catch (err) {
-    showToast('Failed to toggle wallet status', 'error');
   }
 }
 
