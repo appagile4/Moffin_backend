@@ -69,11 +69,13 @@ function switchAdminTab(tabId) {
     fetchAdminRequestHistory();
   } else if (tabId === 'vendorsTab') {
     fetchAdminVendors();
+  } else if (tabId === 'tiersManagementTab') {
+    fetchAdminTierAnalytics();
+    fetchAdminTiersList();
   } else if (tabId === 'destinationsTab') {
     fetchAdminDestinations();
   } else if (tabId === 'fcfsTab') {
     fetchAdminFcfsQueue();
-    fetchAdminTiers();
   } else if (tabId === 'auditTab') {
     fetchAdminAuditLogs();
   }
@@ -144,6 +146,8 @@ function refreshAllDashboardData() {
   fetchAdminPaymentConfirmations();
   fetchAdminDestinations();
   fetchAdminRequestHistory();
+  fetchAdminTierAnalytics();
+  fetchAdminTiersList();
 }
 
 /**
@@ -551,6 +555,13 @@ function renderVendorsTable() {
         ? `<img src="${v.profilePhoto}" class="table-avatar" alt="Avatar">`
         : `<div class="table-avatar">${(v.firstName[0] || 'V').toUpperCase()}</div>`;
 
+      const isManual = v.commissionMode === 'MANUAL';
+      const commRate = isManual 
+        ? (v.manualCommissionRate !== undefined && v.manualCommissionRate !== null ? v.manualCommissionRate : v.effectiveCommissionRate) 
+        : (v.effectiveCommissionRate !== undefined ? v.effectiveCommissionRate : (v.currentTierId?.commissionRate || 1.0));
+      const tierName = v.currentTierDisplayName || v.currentTierName || v.currentTierId?.displayName || v.currentTierId?.name || (typeof v.currentTier === 'string' ? v.currentTier : 'Bronze V');
+      const tierBadgeClass = getAdminTierBadgeClass('', tierName);
+
       return `
         <tr>
           <td>
@@ -566,18 +577,32 @@ function renderVendorsTable() {
             <div>📱 ${v.mobileNumber}</div>
             ${v.whatsappNumber ? `<small class="text-muted">💬 ${v.whatsappNumber}</small>` : ''}
           </td>
+          <td>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <div>
+                <span class="badge ${tierBadgeClass}">${tierName}</span>
+                <span class="badge ${isManual ? 'badge-mode-manual' : 'badge-mode-auto'}">${isManual ? 'MANUAL' : 'AUTO'}</span>
+              </div>
+              <div style="font-size: 0.85rem; font-weight: 700; color: #059669;">
+                Rate: ${commRate}%
+              </div>
+            </div>
+          </td>
           <td><span class="badge badge-default">${v.bankAccounts?.length || 0} Banks</span></td>
           <td><span class="badge badge-default">${v.wallets?.length || 0} Wallets</span></td>
           <td><span class="badge badge-${v.verificationStatus}">${v.verificationStatus}</span></td>
           <td><span class="badge ${v.isActive ? 'badge-active' : 'badge-rejected'}">${v.isActive ? 'Active' : 'Disabled'}</span></td>
           <td>
-            <button class="btn btn-sm btn-secondary" onclick="openVendorDetailModal('${v._id}')">🔍 Review</button>
+            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+              <button class="btn btn-sm btn-secondary" onclick="openVendorDetailModal('${v._id}')">🔍 Review</button>
+              <button class="btn btn-sm btn-info" onclick="openManualCommissionModal('${v._id}')" title="Set or remove manual commission override">⚙️ Override</button>
+            </div>
           </td>
         </tr>
       `;
     }).join('');
   } else {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No matching vendors found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No matching vendors found.</td></tr>';
   }
 }
 
@@ -1318,7 +1343,497 @@ async function fetchAdminTiers() {
 }
 
 /**
- * 9. Audit Logs
+ * 9. Tier & Commission Engine Management (SuperAdmin)
+ */
+let cachedAdminTiers = [];
+
+function getAdminTierBadgeClass(divisionGroup = '', tierName = '') {
+  const text = (divisionGroup || tierName || '').toUpperCase();
+  if (text.includes('ACE')) return 'badge-tier-ace';
+  if (text.includes('CROWN')) return 'badge-tier-crown';
+  if (text.includes('DIAMOND')) return 'badge-tier-diamond';
+  if (text.includes('PLATINUM')) return 'badge-tier-platinum';
+  if (text.includes('GOLD')) return 'badge-tier-gold';
+  if (text.includes('SILVER')) return 'badge-tier-silver';
+  return 'badge-tier-bronze';
+}
+
+async function fetchAdminTierAnalytics() {
+  if (!adminToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/tiers/analytics`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const data = await res.json();
+    if (!data.success || !data.data) return;
+
+    const a = data.data.analytics || data.data;
+
+    // KPI Counters
+    const totalVol = a.totalMonthlyVolume !== undefined ? a.totalMonthlyVolume : (a.totalMonthVolume || 0);
+    const activeVendors = a.activeVendorsCount !== undefined ? a.activeVendorsCount : (a.totalVendors || 0);
+    const nearPromoCount = (a.vendorsCloseToNextTier || a.closeToNextTier || []).length;
+    const manualCount = (a.manualCommissionVendors || []).length;
+
+    const elVol = document.getElementById('adminTierTotalVolume');
+    if (elVol) elVol.textContent = `₹${totalVol.toLocaleString('en-IN')}`;
+
+    const elVendors = document.getElementById('adminTierActiveVendors');
+    if (elVendors) elVendors.textContent = activeVendors;
+
+    const elNear = document.getElementById('adminTierNearPromotionCount');
+    if (elNear) elNear.textContent = nearPromoCount;
+
+    const elManual = document.getElementById('adminTierManualCount');
+    if (elManual) elManual.textContent = manualCount;
+
+    // Tier Distribution Widget
+    const distContainer = document.getElementById('adminTierDistributionContainer');
+    if (distContainer) {
+      if (a.tierDistribution?.length > 0) {
+        distContainer.innerHTML = a.tierDistribution.map(d => {
+          const badgeClass = getAdminTierBadgeClass('', d.tierName);
+          return `
+            <div class="dist-bar-item">
+              <div class="dist-bar-label">
+                <span class="badge ${badgeClass}">${d.displayName || d.tierName}</span>
+              </div>
+              <div class="dist-bar-track">
+                <div class="dist-bar-fill" style="width: ${d.percentage}%;"></div>
+              </div>
+              <div class="dist-bar-count">
+                <strong>${d.count}</strong> <small>(${d.percentage}%)</small>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        distContainer.innerHTML = '<p class="empty-state">No vendor top-up activity recorded in current month yet.</p>';
+      }
+    }
+
+    // Near Promotion List
+    const nearList = document.getElementById('adminNearPromotionList');
+    if (nearList) {
+      if (a.vendorsCloseToNextTier?.length > 0) {
+        nearList.innerHTML = a.vendorsCloseToNextTier.map(v => `
+          <div class="item-card mb-2" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <strong>${v.vendorName}</strong>
+              <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.15rem;">
+                Current: <span class="badge ${getAdminTierBadgeClass('', v.currentTierName)}">${v.currentTierName}</span> ➔ Target: <span class="badge ${getAdminTierBadgeClass('', v.nextTierName)}">${v.nextTierName}</span>
+              </div>
+              <div style="font-size: 0.8rem; color: #0284c7; margin-top: 0.15rem;">
+                Monthly Vol: ₹${(v.totalMonthlyTopUp || 0).toLocaleString('en-IN')} | Needs: ₹${(v.amountToNextTier || 0).toLocaleString('en-IN')} (${v.progressPercentage}%)
+              </div>
+            </div>
+            <button class="btn btn-sm btn-info" onclick="openManualCommissionModal('${v.vendorId}')">⚙️ Override</button>
+          </div>
+        `).join('');
+      } else {
+        nearList.innerHTML = '<p class="empty-state">No vendors currently in near-promotion zone (≥70%).</p>';
+      }
+    }
+
+    // Manual Commission Overrides Table
+    const manualTbody = document.getElementById('adminManualCommissionTbody');
+    if (manualTbody) {
+      if (a.manualCommissionVendors?.length > 0) {
+        manualTbody.innerHTML = a.manualCommissionVendors.map(m => {
+          const dateStr = m.manualCommissionAssignedAt ? new Date(m.manualCommissionAssignedAt).toLocaleDateString('en-IN') : 'N/A';
+          return `
+            <tr>
+              <td><strong>${m.vendorName}</strong></td>
+              <td><span class="badge ${getAdminTierBadgeClass('', m.currentTierName)}">${m.currentTierName}</span></td>
+              <td><span class="badge badge-mode-manual">${m.manualCommissionRate}%</span></td>
+              <td><small>${m.manualCommissionReason || 'Special Agreement'}</small></td>
+              <td><small class="text-muted">${dateStr}</small></td>
+              <td>
+                <div style="display: flex; gap: 0.35rem;">
+                  <button class="btn btn-sm btn-secondary" onclick="openManualCommissionModal('${m.vendorId}')">✏️ Edit</button>
+                  <button class="btn btn-sm btn-warning" onclick="handleQuickRevertAuto('${m.vendorId}')">Revert to Auto</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } else {
+        manualTbody.innerHTML = '<tr><td colspan="6" class="empty-state">No vendors with manual commission overrides. All vendors on auto tier rates.</td></tr>';
+      }
+    }
+
+  } catch (err) {
+    console.error('fetchAdminTierAnalytics error:', err);
+  }
+}
+
+async function fetchAdminTiersList() {
+  if (!adminToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/tiers`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const data = await res.json();
+    const tbody = document.getElementById('adminTiersTableTbody');
+    if (!tbody) return;
+
+    if (data.success && data.data?.tiers?.length > 0) {
+      cachedAdminTiers = data.data.tiers;
+      tbody.innerHTML = data.data.tiers.map(t => {
+        const badgeClass = getAdminTierBadgeClass(t.divisionGroup, t.name);
+        const maxDisplay = t.maxTopUp ? `₹${t.maxTopUp.toLocaleString('en-IN')}` : 'Unlimited (Ace)';
+
+        return `
+          <tr>
+            <td>
+              <span class="badge ${badgeClass}">${t.divisionGroup || 'Tier'}</span>
+              <strong style="margin-left: 0.35rem;">${t.level || ''}</strong>
+            </td>
+            <td><strong>${t.displayName || t.name}</strong></td>
+            <td>₹${(t.minTopUp || 0).toLocaleString('en-IN')}</td>
+            <td>${maxDisplay}</td>
+            <td style="font-weight: 700; color: #059669;">${t.commissionRate}%</td>
+            <td>#${t.orderPriority || 0}</td>
+            <td>
+              <span class="badge ${t.isActive ? 'badge-approved' : 'badge-rejected'}">${t.isActive ? 'Active' : 'Inactive'}</span>
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.35rem;">
+                <button class="btn btn-sm btn-secondary" onclick="openEditTierModal('${t._id}')">✏️ Edit</button>
+                <button class="btn btn-sm ${t.isActive ? 'btn-warning' : 'btn-success'}" onclick="toggleTierActive('${t._id}', ${t.isActive})">${t.isActive ? 'Deactivate' : 'Activate'}</button>
+                <button class="btn btn-sm btn-danger" onclick="handleDeleteTier('${t._id}', '${t.displayName || t.name}')">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No tiers loaded.</td></tr>';
+    }
+  } catch (err) {
+    console.error('fetchAdminTiersList error:', err);
+  }
+}
+
+// Tier CRUD Modals
+function openCreateTierModal() {
+  document.getElementById('tierModalId').value = '';
+  document.getElementById('tierModalTitle').textContent = '➕ Create New Tier';
+  document.getElementById('tierFormName').value = '';
+  document.getElementById('tierFormDisplayName').value = '';
+  document.getElementById('tierFormDivision').value = 'Gold';
+  document.getElementById('tierFormLevel').value = 'III';
+  document.getElementById('tierFormMinTopUp').value = '';
+  document.getElementById('tierFormMaxTopUp').value = '';
+  document.getElementById('tierFormCommissionRate').value = '2.0';
+  document.getElementById('tierFormOrderPriority').value = '10';
+  document.getElementById('tierFormIsActive').checked = true;
+
+  document.getElementById('tierModal').classList.remove('hidden');
+}
+
+function openEditTierModal(tierId) {
+  const t = cachedAdminTiers.find(x => x._id === tierId);
+  if (!t) return;
+
+  document.getElementById('tierModalId').value = t._id;
+  document.getElementById('tierModalTitle').textContent = `✏️ Edit Tier: ${t.displayName || t.name}`;
+  document.getElementById('tierFormName').value = t.name || '';
+  document.getElementById('tierFormDisplayName').value = t.displayName || '';
+  document.getElementById('tierFormDivision').value = t.divisionGroup || 'Custom';
+  document.getElementById('tierFormLevel').value = t.level || '';
+  document.getElementById('tierFormMinTopUp').value = t.minTopUp ?? 0;
+  document.getElementById('tierFormMaxTopUp').value = t.maxTopUp ?? '';
+  document.getElementById('tierFormCommissionRate').value = t.commissionRate ?? 1.0;
+  document.getElementById('tierFormOrderPriority').value = t.orderPriority ?? 0;
+  document.getElementById('tierFormIsActive').checked = Boolean(t.isActive);
+
+  document.getElementById('tierModal').classList.remove('hidden');
+}
+
+function closeTierModal() {
+  document.getElementById('tierModal').classList.add('hidden');
+}
+
+async function handleSaveTier(event) {
+  event.preventDefault();
+
+  const tierId = document.getElementById('tierModalId').value;
+  const maxVal = document.getElementById('tierFormMaxTopUp').value.trim();
+
+  const payload = {
+    name: document.getElementById('tierFormName').value.trim(),
+    displayName: document.getElementById('tierFormDisplayName').value.trim(),
+    divisionGroup: document.getElementById('tierFormDivision').value,
+    level: document.getElementById('tierFormLevel').value.trim(),
+    minTopUp: Number(document.getElementById('tierFormMinTopUp').value),
+    maxTopUp: maxVal ? Number(maxVal) : null,
+    commissionRate: Number(document.getElementById('tierFormCommissionRate').value),
+    orderPriority: Number(document.getElementById('tierFormOrderPriority').value) || 0,
+    isActive: document.getElementById('tierFormIsActive').checked
+  };
+
+  try {
+    const url = tierId ? `${API_BASE}/admin/tiers/${tierId}` : `${API_BASE}/admin/tiers`;
+    const method = tierId ? 'PATCH' : 'POST';
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Tier ${tierId ? 'updated' : 'created'} successfully!`, 'success');
+      closeTierModal();
+      fetchAdminTiersList();
+      fetchAdminTierAnalytics();
+    } else {
+      showToast(data.message || 'Failed to save tier', 'error');
+    }
+  } catch (err) {
+    showToast('Network error saving tier', 'error');
+  }
+}
+
+async function toggleTierActive(tierId, currentActive) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/tiers/${tierId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({ isActive: !currentActive })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Tier ${!currentActive ? 'activated' : 'deactivated'} successfully!`, 'success');
+      fetchAdminTiersList();
+      fetchAdminTierAnalytics();
+    } else {
+      showToast(data.message || 'Failed to update tier status', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to update tier status', 'error');
+  }
+}
+
+async function handleDeleteTier(tierId, tierName) {
+  if (!confirm(`Are you sure you want to permanently delete tier "${tierName}"?`)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/tiers/${tierId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Tier deleted successfully!', 'success');
+      fetchAdminTiersList();
+      fetchAdminTierAnalytics();
+    } else {
+      showToast(data.message || 'Failed to delete tier', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to delete tier', 'error');
+  }
+}
+
+// Manual Commission Override Modals & Handlers
+function openManualCommissionModal(vendorId) {
+  const v = allVendorsCache.find(x => x._id === vendorId);
+  if (!v) {
+    showToast('Vendor information not found in cache. Refreshing...', 'error');
+    fetchAdminVendors();
+    return;
+  }
+
+  document.getElementById('manualVendorId').value = v._id;
+  const isManual = v.commissionMode === 'MANUAL';
+  const tierName = v.currentTierDisplayName || v.currentTierName || v.currentTierId?.displayName || v.currentTierId?.name || (typeof v.currentTier === 'string' ? v.currentTier : 'Bronze V');
+  const currentRate = isManual 
+    ? (v.manualCommissionRate !== undefined && v.manualCommissionRate !== null ? v.manualCommissionRate : v.effectiveCommissionRate) 
+    : (v.effectiveCommissionRate !== undefined ? v.effectiveCommissionRate : (v.currentTierId?.commissionRate || 1.0));
+
+  const infoEl = document.getElementById('manualModalVendorInfo');
+  infoEl.innerHTML = `
+    <div><strong>Vendor:</strong> ${v.firstName} ${v.lastName} (${v.email})</div>
+    <div style="margin-top: 0.25rem;"><strong>Current Tier Rank:</strong> <span class="badge ${getAdminTierBadgeClass('', tierName)}">${tierName}</span></div>
+    <div style="margin-top: 0.25rem;"><strong>Current Status:</strong> <span class="badge ${isManual ? 'badge-mode-manual' : 'badge-mode-auto'}">${isManual ? 'MANUAL OVERRIDE' : 'AUTO TIER RATE'}</span> (${currentRate}%)</div>
+    ${isManual && v.manualCommissionReason ? `<div style="margin-top: 0.25rem; font-size: 0.85rem; color: #b45309;"><strong>Reason:</strong> ${v.manualCommissionReason}</div>` : ''}
+  `;
+
+  document.getElementById('manualCommissionInput').value = isManual ? (v.manualCommissionRate ?? '') : '';
+  document.getElementById('manualCommissionReasonInput').value = isManual ? (v.manualCommissionReason ?? '') : '';
+
+  const revertBtn = document.getElementById('btnRevertAutoCommission');
+  if (revertBtn) {
+    revertBtn.style.display = isManual ? 'inline-block' : 'none';
+  }
+
+  document.getElementById('manualCommissionModal').classList.remove('hidden');
+}
+
+function closeManualCommissionModal() {
+  document.getElementById('manualCommissionModal').classList.add('hidden');
+}
+
+async function handleSaveManualCommission(event) {
+  event.preventDefault();
+
+  const vendorId = document.getElementById('manualVendorId').value;
+  const commissionRate = Number(document.getElementById('manualCommissionInput').value);
+  const reason = document.getElementById('manualCommissionReasonInput').value.trim();
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/manual-commission`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({ commissionRate, reason })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Manual commission override applied successfully!', 'success');
+      closeManualCommissionModal();
+      
+      // Update vendor in local cache immediately
+      const cached = allVendorsCache.find(x => x._id === vendorId);
+      if (cached && data.data) {
+        cached.commissionMode = 'MANUAL';
+        cached.manualCommissionRate = commissionRate;
+        cached.manualCommissionReason = reason;
+        cached.effectiveCommissionRate = commissionRate;
+        if (data.data.currentTierDisplayName || data.data.currentTierName) {
+          cached.currentTierDisplayName = data.data.currentTierDisplayName || data.data.currentTierName;
+          cached.currentTierName = cached.currentTierDisplayName;
+        }
+        renderVendorsTable();
+      }
+      
+      fetchAdminVendors();
+      fetchAdminTierAnalytics();
+    } else {
+      showToast(data.message || 'Failed to set manual commission', 'error');
+    }
+  } catch (err) {
+    showToast('Network error setting commission', 'error');
+  }
+}
+
+async function handleRemoveManualCommission() {
+  const vendorId = document.getElementById('manualVendorId').value;
+  if (!confirm('Revert this vendor back to automatic tier-based commission rate?')) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/manual-commission`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Reverted to automatic tier commission rate!', 'success');
+      closeManualCommissionModal();
+
+      const cached = allVendorsCache.find(x => x._id === vendorId);
+      if (cached && data.data) {
+        cached.commissionMode = 'AUTO';
+        cached.manualCommissionRate = null;
+        cached.manualCommissionReason = null;
+        cached.effectiveCommissionRate = data.data.effectiveCommissionRate;
+        if (data.data.currentTierDisplayName || data.data.currentTierName) {
+          cached.currentTierDisplayName = data.data.currentTierDisplayName || data.data.currentTierName;
+          cached.currentTierName = cached.currentTierDisplayName;
+        }
+        renderVendorsTable();
+      }
+
+      fetchAdminVendors();
+      fetchAdminTierAnalytics();
+    } else {
+      showToast(data.message || 'Failed to revert commission mode', 'error');
+    }
+  } catch (err) {
+    showToast('Network error reverting commission', 'error');
+  }
+}
+
+async function handleQuickRevertAuto(vendorId) {
+  if (!confirm('Revert this vendor back to automatic tier-based commission rate?')) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/vendors/${vendorId}/manual-commission`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Reverted to automatic tier commission!', 'success');
+
+      const cached = allVendorsCache.find(x => x._id === vendorId);
+      if (cached && data.data) {
+        cached.commissionMode = 'AUTO';
+        cached.manualCommissionRate = null;
+        cached.manualCommissionReason = null;
+        cached.effectiveCommissionRate = data.data.effectiveCommissionRate;
+        if (data.data.currentTierDisplayName || data.data.currentTierName) {
+          cached.currentTierDisplayName = data.data.currentTierDisplayName || data.data.currentTierName;
+          cached.currentTierName = cached.currentTierDisplayName;
+        }
+        renderVendorsTable();
+      }
+
+      fetchAdminVendors();
+      fetchAdminTierAnalytics();
+    } else {
+      showToast(data.message || 'Failed to revert commission', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to revert commission', 'error');
+  }
+}
+
+async function triggerMonthlyReset() {
+  if (!confirm('Are you sure you want to trigger the monthly tier cycle reset now? This will finalize all current monthly records and initialize fresh month records starting at ₹0.')) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/tiers/run-monthly-reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      }
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'Monthly reset completed successfully!', 'success');
+      fetchAdminVendors();
+      fetchAdminTierAnalytics();
+    } else {
+      showToast(data.message || 'Failed to run reset', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to execute reset', 'error');
+  }
+}
+
+/**
+ * 10. System Audit Logs
  */
 async function fetchAdminAuditLogs() {
   if (!adminToken) return;
@@ -1353,7 +1868,7 @@ async function fetchAdminAuditLogs() {
 }
 
 /**
- * 10. Admin Logout
+ * 11. Admin Logout
  */
 function adminLogout() {
   adminToken = null;
@@ -1362,3 +1877,4 @@ function adminLogout() {
   showAdminLoginSection();
   showToast('SuperAdmin logged out', 'success');
 }
+

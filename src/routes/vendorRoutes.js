@@ -32,7 +32,8 @@ const {
 
 const {
   getVendorWallet,
-  getVendorTransactions
+  getVendorTransactions,
+  getVendorOverviewStats
 } = require('../controllers/walletController');
 
 const {
@@ -44,7 +45,10 @@ const {
 } = require('../controllers/paymentDestinationController');
 
 const {
-  getTiers
+  getTiers,
+  getVendorCurrentProgress,
+  getVendorMonthlyHistory,
+  getVendorTierMovements
 } = require('../controllers/tierController');
 
 const {
@@ -156,13 +160,17 @@ router.get(
 // 7. FINANCIAL WALLET & LEDGER (Protected - Vendor only)
 // =============================================================================
 router.get('/wallet', authMiddleware, vendorAuth, getVendorWallet);
+router.get('/wallet/overview-stats', authMiddleware, vendorAuth, getVendorOverviewStats);
 router.get(['/wallet/transactions', '/wallet/ledger'], authMiddleware, vendorAuth, getVendorTransactions);
 
 // =============================================================================
-// 8. FCFS STATUS & TIERS (Protected - Vendor only)
+// 8. FCFS STATUS, PAYMENT DESTINATIONS & TIERS (Protected - Vendor only)
 // =============================================================================
 router.get('/fcfs-status', authMiddleware, vendorAuth, getVendorQueueStatus);
 router.get('/payment-destinations', authMiddleware, vendorAuth, getDestinations);
 router.get('/tiers', authMiddleware, vendorAuth, getTiers);
+router.get('/tier-progress', authMiddleware, vendorAuth, getVendorCurrentProgress);
+router.get('/monthly-history', authMiddleware, vendorAuth, getVendorMonthlyHistory);
+router.get('/tier-movements', authMiddleware, vendorAuth, getVendorTierMovements);
 
 module.exports = router;

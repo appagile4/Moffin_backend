@@ -50,11 +50,20 @@ const {
   getClientTransactions
 } = require('../controllers/fcfsController');
 
-// Tiers
+// Tiers & Monthly Progression
 const {
   getTiers,
+  getTierById,
   createTier,
-  updateTier
+  updateTier,
+  deleteTier,
+  getVendorCurrentProgress,
+  getVendorMonthlyHistory,
+  getVendorTierMovements,
+  handleSetManualCommission,
+  handleRemoveManualCommission,
+  getAdminTierAnalytics,
+  handleRunMonthlyReset
 } = require('../controllers/tierController');
 
 // Middleware
@@ -136,11 +145,22 @@ router.patch('/fcfs/reorder', authMiddleware, superAdminAuth, reorderQueue);
 router.get('/fcfs/transactions', authMiddleware, adminAuth, getClientTransactions);
 
 // =============================================================================
-// 8. VENDOR TIERS & COMMISSION RULES
+// 8. VENDOR TIERS & MONTHLY PROGRESSION
 // =============================================================================
+router.get('/tiers/analytics', authMiddleware, adminAuth, getAdminTierAnalytics);
+router.post('/tiers/run-monthly-reset', authMiddleware, superAdminAuth, handleRunMonthlyReset);
 router.get('/tiers', authMiddleware, adminAuth, getTiers);
 router.post('/tiers', authMiddleware, superAdminAuth, createTier);
+router.get('/tiers/:id', authMiddleware, adminAuth, validateObjectId('id'), getTierById);
 router.patch('/tiers/:id', authMiddleware, superAdminAuth, validateObjectId('id'), updateTier);
+router.delete('/tiers/:id', authMiddleware, superAdminAuth, validateObjectId('id'), deleteTier);
+
+// Vendor-specific tier progress & manual commission overrides
+router.get('/vendors/:vendorId/tier-progress', authMiddleware, adminAuth, validateObjectId('vendorId'), getVendorCurrentProgress);
+router.get('/vendors/:vendorId/monthly-history', authMiddleware, adminAuth, validateObjectId('vendorId'), getVendorMonthlyHistory);
+router.get('/vendors/:vendorId/tier-movements', authMiddleware, adminAuth, validateObjectId('vendorId'), getVendorTierMovements);
+router.post('/vendors/:vendorId/manual-commission', authMiddleware, superAdminAuth, validateObjectId('vendorId'), handleSetManualCommission);
+router.delete('/vendors/:vendorId/manual-commission', authMiddleware, superAdminAuth, validateObjectId('vendorId'), handleRemoveManualCommission);
 // =============================================================================
 // 9. AUDIT LOGS
 // =============================================================================

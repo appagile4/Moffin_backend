@@ -450,7 +450,15 @@ const adminApprovePayment = async (confirmationId, adminId) => {
     // 7. Auto-register vendor in FCFS queue if not present
     await syncVendorToQueue(confirmation.vendorId);
 
-    // 8. Create Audit Log
+    // 8. Dynamically recalculate vendor's monthly tier and progression
+    const { recalculateVendorMonthlyTier } = require('./tierCalculationService');
+    const tierResult = await recalculateVendorMonthlyTier(confirmation.vendorId, {
+      topUpAmount: confirmation.amountPaid,
+      reason: `Top-up payment approved (TxID: ${confirmation.transactionId})`,
+      session
+    });
+
+    // 9. Create Audit Log
     await logAction({
       actor: adminId,
       actorRole: 'super_admin',
@@ -461,7 +469,8 @@ const adminApprovePayment = async (confirmationId, adminId) => {
         confirmationId: confirmation.confirmationId,
         vendorId: confirmation.vendorId,
         creditedAmount: confirmation.amountPaid,
-        walletBalanceAfter: walletResult.wallet.balance
+        walletBalanceAfter: walletResult.wallet.balance,
+        currentTier: tierResult?.currentTierDisplayName || tierResult?.currentTierName
       },
       session
     });

@@ -1,667 +1,1481 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Moffin 2 - SuperAdmin Control Center</title>
-  <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    .admin-header-badge {
-      background: #4338ca;
-      color: #e0e7ff;
-      font-size: 0.75rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 4px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .search-filter-bar {
-      display: flex;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 1rem;
-      flex-wrap: wrap;
-    }
-    .search-input {
-      flex: 1;
-      min-width: 240px;
-    }
-    .section-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--text-main);
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-  </style>
-</head>
-<body>
-  <!-- Navigation Bar -->
-  <nav class="navbar">
-    <div class="nav-container">
-      <div class="logo">
-        <span class="logo-icon">🛡️</span>
-        <span class="logo-text">Moffin 2</span>
-        <span class="admin-header-badge">SuperAdmin Portal</span>
-      </div>
-      <div class="nav-actions">
-        <span id="adminGreeting" class="user-greeting"></span>
-        <a href="/" class="btn btn-sm btn-secondary" target="_blank">⚡ Vendor Portal ↗</a>
-        <button id="adminLogoutBtn" class="btn btn-sm btn-danger hidden" onclick="adminLogout()">Logout</button>
-      </div>
-    </div>
-  </nav>
-
-  <!-- Notification Toast -->
-  <div id="toast" class="toast hidden"></div>
-
-  <!-- Main Container -->
-  <main class="main-container">
-    
-    <!-- 1. SUPERADMIN LOGIN SECTION (Only Login, No Registration) -->
-    <div id="adminLoginSection" style="max-width: 440px; margin: 3rem auto;">
-      <div class="card">
-        <div class="card-header text-center">
-          <h2>🛡️ SuperAdmin Login</h2>
-          <p class="subtitle">Enter administrator credentials to manage vendors & finances</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Moffin 2 - SuperAdmin Control Center</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .admin-header-badge {
+        background: #4338ca;
+        color: #e0e7ff;
+        font-size: 0.75rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .search-filter-bar {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+      }
+      .search-input {
+        flex: 1;
+        min-width: 240px;
+      }
+      .section-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <div class="logo">
+          <span class="logo-icon">🛡️</span>
+          <span class="logo-text">Moffin 2</span>
+          <span class="admin-header-badge">SuperAdmin Portal</span>
         </div>
-        <form id="adminLoginForm" onsubmit="handleAdminLogin(event)">
-          <div class="form-group">
-            <label>Admin Email *</label>
-            <input type="email" id="adminEmail" required placeholder="admin@moffin.com" value="admin@moffin.com">
-          </div>
-          <div class="form-group">
-            <label>Password *</label>
-            <input type="password" id="adminPassword" required placeholder="••••••••" value="Admin@123456">
-          </div>
-          <button type="submit" class="btn btn-primary w-full">Sign In as SuperAdmin</button>
-        </form>
-        <div style="margin-top: 1.25rem; font-size: 0.8rem; color: var(--text-muted); background: #f1f5f9; padding: 0.75rem; border-radius: 8px;">
-          🔑 <strong>Default SuperAdmin Credentials:</strong><br>
-          Email: <code>admin@moffin.com</code><br>
-          Password: <code>Admin@123456</code>
+        <div class="nav-actions">
+          <span id="adminGreeting" class="user-greeting"></span>
+          <a href="/" class="btn btn-sm btn-secondary" target="_blank"
+            >⚡ Vendor Portal ↗</a
+          >
+          <button
+            id="adminLogoutBtn"
+            class="btn btn-sm btn-danger hidden"
+            onclick="adminLogout()"
+          >
+            Logout
+          </button>
         </div>
       </div>
-    </div>
+    </nav>
 
-    <!-- 2. SUPERADMIN DASHBOARD SECTION -->
-    <div id="adminDashboardSection" class="hidden">
-      
-      <!-- Stats KPI Cards -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <span class="stat-title">Total Vendors</span>
-          <span class="stat-value" id="statTotalVendors">0</span>
-        </div>
-        <div class="stat-card" style="border-left: 4px solid #f59e0b;">
-          <span class="stat-title">Pending KYC</span>
-          <span class="stat-value" id="statPendingVendors" style="color: #d97706;">0</span>
-        </div>
-        <div class="stat-card" style="border-left: 4px solid #0284c7;">
-          <span class="stat-title">Pending Top-Ups</span>
-          <span class="stat-value" id="statPendingTopUps" style="color: #0284c7;">0</span>
-        </div>
-        <div class="stat-card" style="border-left: 4px solid #854d0e;">
-          <span class="stat-title">Pending Confirmations</span>
-          <span class="stat-value" id="statPendingConfirmations" style="color: #854d0e;">0</span>
-        </div>
-        <div class="stat-card" style="border-left: 4px solid #10b981;">
-          <span class="stat-title">Approved Vendors</span>
-          <span class="stat-value" id="statApprovedVendors" style="color: #059669;">0</span>
-        </div>
-      </div>
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden"></div>
 
-      <!-- Navigation Tabs -->
-      <div class="tabs">
-        <button class="tab-btn active" onclick="switchAdminTab('topupsApprovalTab')">⚡ Top-Up Approvals & Proofs</button>
-        <button class="tab-btn" onclick="switchAdminTab('historyTab')">📋 Request History</button>
-        <button class="tab-btn" onclick="switchAdminTab('vendorsTab')">👥 Vendor KYC & Accounts</button>
-        <button class="tab-btn" onclick="switchAdminTab('destinationsTab')">🏢 Payment Destinations</button>
-        <button class="tab-btn" onclick="switchAdminTab('fcfsTab')">🎯 FCFS Queue & Tiers</button>
-        <button class="tab-btn" onclick="switchAdminTab('auditTab')">📜 Audit Trail</button>
-      </div>
-
-      <!-- TAB 1: TOP-UP APPROVALS & PAYMENT PROOFS -->
-      <div id="topupsApprovalTab" class="tab-content">
-        
-        <!-- SECTION A: Pending Top-Up Requests -->
-        <div class="card mb-3">
-          <div class="card-header flex-between">
-            <div>
-              <h3>⏳ 1. Pending Top-Up Requests (Awaiting Admin Response)</h3>
-              <p class="subtitle">Assign company destination (Bank or Wallet) to instruct vendor where to pay</p>
-            </div>
-            <button class="btn btn-sm btn-secondary" onclick="fetchAdminTopUps()">🔄 Refresh</button>
-          </div>
-          <div style="overflow-x: auto;">
-            <table class="custom-table">
-              <thead>
-                <tr>
-                  <th>Request ID</th>
-                  <th>Vendor</th>
-                  <th>Requested Amount</th>
-                  <th>Preferred Method</th>
-                  <th>Created At</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="adminPendingTopUpsTbody">
-                <tr><td colspan="6" class="empty-state">Loading pending top-ups...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- SECTION B: Submitted Payment Confirmations -->
+    <!-- Main Container -->
+    <main class="main-container">
+      <!-- 1. SUPERADMIN LOGIN SECTION (Only Login, No Registration) -->
+      <div id="adminLoginSection" style="max-width: 440px; margin: 3rem auto">
         <div class="card">
-          <div class="card-header flex-between">
-            <div>
-              <h3>💳 2. Payment Proofs Submitted (Awaiting Verification & Approval)</h3>
-              <p class="subtitle">Review vendor UTR and screenshot proof, then atomically credit wallet</p>
-            </div>
-            <button class="btn btn-sm btn-secondary" onclick="fetchAdminPaymentConfirmations()">🔄 Refresh</button>
+          <div class="card-header text-center">
+            <h2>🛡️ SuperAdmin Login</h2>
+            <p class="subtitle">
+              Enter administrator credentials to manage vendors & finances
+            </p>
           </div>
-          <div style="overflow-x: auto;">
-            <table class="custom-table">
-              <thead>
-                <tr>
-                  <th>Confirmation ID</th>
-                  <th>Vendor</th>
-                  <th>Amount Paid</th>
-                  <th>Method</th>
-                  <th>UTR / Txn ID</th>
-                  <th>Submitted At</th>
-                  <th>Proof</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="adminConfirmationsTbody">
-                <tr><td colspan="8" class="empty-state">Loading payment confirmations...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- TAB: COMPLETE REQUEST HISTORY & ARCHIVE -->
-      <div id="historyTab" class="tab-content hidden">
-        <div class="card">
-          <div class="card-header flex-between">
-            <div>
-              <h3>📋 Complete Top-Up Request History</h3>
-              <p class="subtitle">Full historical ledger of all vendor top-up requests and transactions</p>
+          <form id="adminLoginForm" onsubmit="handleAdminLogin(event)">
+            <div class="form-group">
+              <label>Admin Email *</label>
+              <input
+                type="email"
+                id="adminEmail"
+                required
+                placeholder="admin@moffin.com"
+                value="admin@moffin.com"
+              />
             </div>
-            <button class="btn btn-sm btn-secondary" onclick="fetchAdminRequestHistory()">🔄 Refresh History</button>
-          </div>
-
-          <!-- History Filter Bar -->
-          <div class="search-filter-bar">
-            <div class="tabs" style="margin-bottom: 0; border: none; flex-wrap: wrap;">
-              <button class="tab-btn active" onclick="setAdminHistoryFilter('all', event)">All Requests</button>
-              <button class="tab-btn" onclick="setAdminHistoryFilter('PENDING_ADMIN_RESPONSE', event)">⏳ Pending Response</button>
-              <button class="tab-btn" onclick="setAdminHistoryFilter('AWAITING_PAYMENT', event)">💳 Awaiting Payment</button>
-              <button class="tab-btn" onclick="setAdminHistoryFilter('PAYMENT_SUBMITTED', event)">🔍 Under Review</button>
-              <button class="tab-btn" onclick="setAdminHistoryFilter('APPROVED', event)">✅ Approved</button>
-              <button class="tab-btn" onclick="setAdminHistoryFilter('REJECTED', event)">❌ Rejected</button>
+            <div class="form-group">
+              <label>Password *</label>
+              <input
+                type="password"
+                id="adminPassword"
+                required
+                placeholder="••••••••"
+                value="Admin@123456"
+              />
             </div>
-            <div class="search-input">
-              <input type="text" id="adminHistorySearchInput" placeholder="🔍 Search ID, vendor, email, UTR..." oninput="handleAdminHistorySearch()">
-            </div>
-          </div>
-
-          <div style="overflow-x: auto;">
-            <table class="custom-table">
-              <thead>
-                <tr>
-                  <th>Request ID</th>
-                  <th>Vendor</th>
-                  <th>Requested Amount</th>
-                  <th>Method</th>
-                  <th>Status</th>
-                  <th>Assigned Destinations</th>
-                  <th>Created At</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="adminHistoryTbody">
-                <tr><td colspan="8" class="empty-state">Loading request history...</td></tr>
-              </tbody>
-            </table>
+            <button type="submit" class="btn btn-primary w-full">
+              Sign In as SuperAdmin
+            </button>
+          </form>
+          <div
+            style="
+              margin-top: 1.25rem;
+              font-size: 0.8rem;
+              color: var(--text-muted);
+              background: #f1f5f9;
+              padding: 0.75rem;
+              border-radius: 8px;
+            "
+          >
+            🔑 <strong>Default SuperAdmin Credentials:</strong><br />
+            Email: <code>admin@moffin.com</code><br />
+            Password: <code>Admin@123456</code>
           </div>
         </div>
       </div>
 
-      <!-- TAB 2: VENDOR KYC & ACCOUNTS -->
-      <div id="vendorsTab" class="tab-content hidden">
-        <div class="card">
-          
-          <div class="search-filter-bar">
-            <div class="tabs" style="margin-bottom: 0; border: none;">
-              <button class="tab-btn active" onclick="setAdminVendorFilter('all', event)">All Vendors</button>
-              <button class="tab-btn" onclick="setAdminVendorFilter('pending', event)">⏳ Pending KYC</button>
-              <button class="tab-btn" onclick="setAdminVendorFilter('approved', event)">✅ Approved</button>
-              <button class="tab-btn" onclick="setAdminVendorFilter('rejected', event)">❌ Rejected</button>
-            </div>
-            <div class="search-input">
-              <input type="text" id="adminSearchInput" placeholder="🔍 Search name, email, mobile..." oninput="handleAdminVendorSearch()">
-            </div>
+      <!-- 2. SUPERADMIN DASHBOARD SECTION -->
+      <div id="adminDashboardSection" class="hidden">
+        <!-- Stats KPI Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-title">Total Vendors</span>
+            <span class="stat-value" id="statTotalVendors">0</span>
           </div>
-
-          <div style="overflow-x: auto;">
-            <table class="custom-table">
-              <thead>
-                <tr>
-                  <th>Vendor</th>
-                  <th>Contact</th>
-                  <th>Bank Accounts</th>
-                  <th>Wallets</th>
-                  <th>KYC Status</th>
-                  <th>Account</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="adminVendorsTbody">
-                <tr><td colspan="7" class="empty-state">Loading vendors...</td></tr>
-              </tbody>
-            </table>
+          <div class="stat-card" style="border-left: 4px solid #f59e0b">
+            <span class="stat-title">Pending KYC</span>
+            <span
+              class="stat-value"
+              id="statPendingVendors"
+              style="color: #d97706"
+              >0</span
+            >
           </div>
-
+          <div class="stat-card" style="border-left: 4px solid #0284c7">
+            <span class="stat-title">Pending Top-Ups</span>
+            <span
+              class="stat-value"
+              id="statPendingTopUps"
+              style="color: #0284c7"
+              >0</span
+            >
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #854d0e">
+            <span class="stat-title">Pending Confirmations</span>
+            <span
+              class="stat-value"
+              id="statPendingConfirmations"
+              style="color: #854d0e"
+              >0</span
+            >
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #10b981">
+            <span class="stat-title">Approved Vendors</span>
+            <span
+              class="stat-value"
+              id="statApprovedVendors"
+              style="color: #059669"
+              >0</span
+            >
+          </div>
         </div>
-      </div>
 
-      <!-- TAB 3: PAYMENT DESTINATIONS -->
-      <div id="destinationsTab" class="tab-content hidden">
-        <div class="grid-2">
-          
-          <!-- Destinations List -->
-          <div class="card">
-            <div class="card-header flex-between">
-              <h3>Company Payment Destinations</h3>
-              <button class="btn btn-sm btn-secondary" onclick="fetchAdminDestinations()">🔄 Refresh</button>
-            </div>
-            <div id="adminDestinationsList" class="items-list">
-              <p class="empty-state">Loading destinations...</p>
-            </div>
-          </div>
-
-          <!-- Add Destination Form -->
-          <div class="card">
-            <div class="card-header">
-              <h3>➕ Add Company Destination</h3>
-              <p class="subtitle">Bank accounts and wallets for vendor top-ups</p>
-            </div>
-            <form id="addDestinationForm" onsubmit="handleAddDestination(event)">
-              <div class="form-group">
-                <label>Destination Type *</label>
-                <select id="destType" required onchange="toggleDestTypeFields()">
-                  <option value="bank">Bank Account</option>
-                  <option value="wallet">UPI / Wallet</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label>Display Name / Label *</label>
-                <input type="text" id="destDisplayName" placeholder="e.g. Primary HDFC Current A/C" required>
-              </div>
-
-              <!-- Bank Fields -->
-              <div id="destBankFields">
-                <div class="form-group">
-                  <label>Bank Name *</label>
-                  <input type="text" id="destBankName" placeholder="e.g. HDFC Bank">
-                </div>
-                <div class="form-group">
-                  <label>Account Number *</label>
-                  <input type="text" id="destAccountNumber" placeholder="e.g. 50100987654321">
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>IFSC Code *</label>
-                    <input type="text" id="destIfsc" placeholder="HDFC0001234">
-                  </div>
-                  <div class="form-group">
-                    <label>Branch Name</label>
-                    <input type="text" id="destBranch" placeholder="Main Branch">
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>Account Holder Name *</label>
-                  <input type="text" id="destHolderName" placeholder="Moffin Tech Pvt Ltd">
-                </div>
-              </div>
-
-              <!-- Wallet Fields -->
-              <div id="destWalletFields" class="hidden">
-                <div class="form-group">
-                  <label>Wallet / UPI Name *</label>
-                  <input type="text" id="destWalletName" placeholder="e.g. Company Paytm / PhonePe">
-                </div>
-                <div class="form-group">
-                  <label>UPI ID / Wallet ID *</label>
-                  <input type="text" id="destWalletId" placeholder="moffin@okhdfcbank">
-                </div>
-                <div class="form-group">
-                  <label>QR Code Image (Upload to Cloudinary - Optional)</label>
-                  <input type="file" id="destWalletQr" accept="image/jpeg,image/png,image/webp">
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Daily Limit (₹)</label>
-                  <input type="number" id="destDailyLimit" placeholder="e.g. 1000000">
-                </div>
-                <div class="form-group">
-                  <label>Min / Max Amount (₹)</label>
-                  <input type="text" id="destMinMax" placeholder="100 - 500000">
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>Transfer Instructions / Notes</label>
-                <input type="text" id="destInstructions" placeholder="e.g. Mention your vendor ID in remarks">
-              </div>
-
-              <div class="form-check">
-                <input type="checkbox" id="destIsActive" checked>
-                <label for="destIsActive">Active for vendor selection</label>
-              </div>
-
-              <button type="submit" class="btn btn-primary w-full">Save Destination</button>
-            </form>
-          </div>
-
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+          <button
+            class="tab-btn active"
+            onclick="switchAdminTab('topupsApprovalTab')"
+          >
+            ⚡ Top-Up Approvals & Proofs
+          </button>
+          <button class="tab-btn" onclick="switchAdminTab('historyTab')">
+            📋 Request History
+          </button>
+          <button class="tab-btn" onclick="switchAdminTab('vendorsTab')">
+            👥 Vendor KYC & Accounts
+          </button>
+          <button
+            class="tab-btn"
+            onclick="switchAdminTab('tiersManagementTab')"
+          >
+            🏆 Tiers & Commissions
+          </button>
+          <button class="tab-btn" onclick="switchAdminTab('destinationsTab')">
+            🏢 Payment Destinations
+          </button>
+          <button class="tab-btn" onclick="switchAdminTab('fcfsTab')">
+            🎯 FCFS Queue
+          </button>
+          <button class="tab-btn" onclick="switchAdminTab('auditTab')">
+            📜 Audit Trail
+          </button>
         </div>
-      </div>
 
-      <!-- TAB 4: FCFS QUEUE & TIERS -->
-      <div id="fcfsTab" class="tab-content hidden">
-        <div class="grid-2">
-          
-          <!-- FCFS Queue Table -->
-          <div class="card">
+        <!-- TAB 1: TOP-UP APPROVALS & PAYMENT PROOFS -->
+        <div id="topupsApprovalTab" class="tab-content">
+          <!-- SECTION A: Pending Top-Up Requests -->
+          <div class="card mb-3">
             <div class="card-header flex-between">
               <div>
-                <h3>🎯 Live FCFS Priority Queue</h3>
-                <p class="subtitle">Automatic client transaction allocation order</p>
+                <h3>⏳ 1. Pending Top-Up Requests (Awaiting Admin Response)</h3>
+                <p class="subtitle">
+                  Assign company destination (Bank or Wallet) to instruct vendor
+                  where to pay
+                </p>
               </div>
-              <button class="btn btn-sm btn-secondary" onclick="fetchAdminFcfsQueue()">🔄 Refresh</button>
+              <button
+                class="btn btn-sm btn-secondary"
+                onclick="fetchAdminTopUps()"
+              >
+                🔄 Refresh
+              </button>
             </div>
-            <div style="overflow-x: auto;">
+            <div style="overflow-x: auto">
               <table class="custom-table">
                 <thead>
                   <tr>
-                    <th>Rank</th>
+                    <th>Request ID</th>
                     <th>Vendor</th>
-                    <th>Wallet Balance</th>
-                    <th>Skips</th>
-                    <th>Status</th>
+                    <th>Requested Amount</th>
+                    <th>Preferred Method</th>
+                    <th>Created At</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
-                <tbody id="adminFcfsTbody">
-                  <tr><td colspan="6" class="empty-state">Loading FCFS queue...</td></tr>
+                <tbody id="adminPendingTopUpsTbody">
+                  <tr>
+                    <td colspan="6" class="empty-state">
+                      Loading pending top-ups...
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <!-- Commission Tiers -->
+          <!-- SECTION B: Submitted Payment Confirmations -->
           <div class="card">
             <div class="card-header flex-between">
               <div>
-                <h3>🏷️ Commission Tiers</h3>
-                <p class="subtitle">System tier rates applied to transactions</p>
+                <h3>
+                  💳 2. Payment Proofs Submitted (Awaiting Verification &
+                  Approval)
+                </h3>
+                <p class="subtitle">
+                  Review vendor UTR and screenshot proof, then atomically credit
+                  wallet
+                </p>
               </div>
-              <button class="btn btn-sm btn-secondary" onclick="fetchAdminTiers()">🔄 Refresh</button>
+              <button
+                class="btn btn-sm btn-secondary"
+                onclick="fetchAdminPaymentConfirmations()"
+              >
+                🔄 Refresh
+              </button>
             </div>
-            <div id="adminTiersList" class="items-list">
-              <p class="empty-state">Loading tiers...</p>
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Confirmation ID</th>
+                    <th>Vendor</th>
+                    <th>Amount Paid</th>
+                    <th>Method</th>
+                    <th>UTR / Txn ID</th>
+                    <th>Submitted At</th>
+                    <th>Proof</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminConfirmationsTbody">
+                  <tr>
+                    <td colspan="8" class="empty-state">
+                      Loading payment confirmations...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: COMPLETE REQUEST HISTORY & ARCHIVE -->
+        <div id="historyTab" class="tab-content hidden">
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>📋 Complete Top-Up Request History</h3>
+                <p class="subtitle">
+                  Full historical ledger of all vendor top-up requests and
+                  transactions
+                </p>
+              </div>
+              <button
+                class="btn btn-sm btn-secondary"
+                onclick="fetchAdminRequestHistory()"
+              >
+                🔄 Refresh History
+              </button>
+            </div>
+
+            <!-- History Filter Bar -->
+            <div class="search-filter-bar">
+              <div
+                class="tabs"
+                style="margin-bottom: 0; border: none; flex-wrap: wrap"
+              >
+                <button
+                  class="tab-btn active"
+                  onclick="setAdminHistoryFilter('all', event)"
+                >
+                  All Requests
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="
+                    setAdminHistoryFilter('PENDING_ADMIN_RESPONSE', event)
+                  "
+                >
+                  ⏳ Pending Response
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminHistoryFilter('AWAITING_PAYMENT', event)"
+                >
+                  💳 Awaiting Payment
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminHistoryFilter('PAYMENT_SUBMITTED', event)"
+                >
+                  🔍 Under Review
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminHistoryFilter('APPROVED', event)"
+                >
+                  ✅ Approved
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminHistoryFilter('REJECTED', event)"
+                >
+                  ❌ Rejected
+                </button>
+              </div>
+              <div class="search-input">
+                <input
+                  type="text"
+                  id="adminHistorySearchInput"
+                  placeholder="🔍 Search ID, vendor, email, UTR..."
+                  oninput="handleAdminHistorySearch()"
+                />
+              </div>
+            </div>
+
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Request ID</th>
+                    <th>Vendor</th>
+                    <th>Requested Amount</th>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th>Assigned Destinations</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminHistoryTbody">
+                  <tr>
+                    <td colspan="8" class="empty-state">
+                      Loading request history...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: VENDOR KYC & ACCOUNTS -->
+        <div id="vendorsTab" class="tab-content hidden">
+          <div class="card">
+            <div class="search-filter-bar">
+              <div class="tabs" style="margin-bottom: 0; border: none">
+                <button
+                  class="tab-btn active"
+                  onclick="setAdminVendorFilter('all', event)"
+                >
+                  All Vendors
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminVendorFilter('pending', event)"
+                >
+                  ⏳ Pending KYC
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminVendorFilter('approved', event)"
+                >
+                  ✅ Approved
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminVendorFilter('rejected', event)"
+                >
+                  ❌ Rejected
+                </button>
+              </div>
+              <div class="search-input">
+                <input
+                  type="text"
+                  id="adminSearchInput"
+                  placeholder="🔍 Search name, email, mobile..."
+                  oninput="handleAdminVendorSearch()"
+                />
+              </div>
+            </div>
+
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Vendor</th>
+                    <th>Contact</th>
+                    <th>Tier & Commission</th>
+                    <th>Bank Accounts</th>
+                    <th>Wallets</th>
+                    <th>KYC Status</th>
+                    <th>Account</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminVendorsTbody">
+                  <tr>
+                    <td colspan="8" class="empty-state">Loading vendors...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: TIERS & COMMISSIONS MANAGEMENT -->
+        <div id="tiersManagementTab" class="tab-content hidden">
+          <!-- Action Toolbar & Quick Actions -->
+          <div
+            class="card mb-3"
+            style="
+              background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+              color: #fff;
+            "
+          >
+            <div
+              class="card-header flex-between"
+              style="border-bottom: 1px solid rgba(255, 255, 255, 0.15)"
+            >
+              <div>
+                <h3 style="color: #fff; margin: 0">
+                  🏆 Tier & Commission Engine
+                </h3>
+                <p style="color: #c7d2fe; margin: 0; font-size: 0.85rem">
+                  Dynamic monthly ranking based on current calendar month
+                  (Asia/Kolkata) successful top-up volume
+                </p>
+              </div>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+                <button
+                  class="btn btn-sm btn-success"
+                  onclick="openCreateTierModal()"
+                >
+                  ➕ Create New Tier
+                </button>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  onclick="
+                    fetchAdminTierAnalytics();
+                    fetchAdminTiersList();
+                  "
+                  style="
+                    background: rgba(255, 255, 255, 0.15);
+                    border-color: rgba(255, 255, 255, 0.25);
+                    color: #fff;
+                  "
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+
+            <!-- Monthly Analytics KPI Strip -->
+            <div
+              class="tier-metrics-grid"
+              style="margin-top: 1.25rem; margin-bottom: 0"
+            >
+              <div class="tier-metric-box">
+                <span class="label">Current Cycle Volume</span>
+                <span class="val" id="adminTierTotalVolume">₹0</span>
+              </div>
+              <div class="tier-metric-box">
+                <span class="label">Active Monthly Vendors</span>
+                <span class="val" id="adminTierActiveVendors">0</span>
+              </div>
+              <div class="tier-metric-box">
+                <span class="label">Near Promotion (≥70%)</span>
+                <span
+                  class="val"
+                  id="adminTierNearPromotionCount"
+                  style="color: #67e8f9"
+                  >0</span
+                >
+              </div>
+              <div class="tier-metric-box">
+                <span class="label">Manual Override Vendors</span>
+                <span
+                  class="val"
+                  id="adminTierManualCount"
+                  style="color: #fde047"
+                  >0</span
+                >
+              </div>
             </div>
           </div>
 
-        </div>
-      </div>
-
-      <!-- TAB 5: AUDIT TRAIL -->
-      <div id="auditTab" class="tab-content hidden">
-        <div class="card">
-          <div class="card-header flex-between">
-            <div>
-              <h3>📜 System & Financial Audit Trail</h3>
-              <p class="subtitle">Immutable log of all administrative and financial actions</p>
+          <!-- 2-Column Analytics Section -->
+          <div class="grid-2 mb-3">
+            <!-- Column 1: Tier Distribution -->
+            <div class="card">
+              <div class="card-header flex-between">
+                <div>
+                  <h3>📊 Monthly Tier Distribution</h3>
+                  <p class="subtitle">
+                    Real-time breakdown of vendors by current rank
+                  </p>
+                </div>
+              </div>
+              <div
+                id="adminTierDistributionContainer"
+                style="margin-top: 1rem; max-height: 320px; overflow-y: auto"
+              >
+                <p class="empty-state">Loading distribution...</p>
+              </div>
             </div>
-            <button class="btn btn-sm btn-secondary" onclick="fetchAdminAuditLogs()">🔄 Refresh</button>
+
+            <!-- Column 2: Vendors Close to Promotion -->
+            <div class="card">
+              <div class="card-header flex-between">
+                <div>
+                  <h3>🔥 Near Next Rank (≥70% Volume)</h3>
+                  <p class="subtitle">
+                    Vendors closest to unlocking their next commission tier
+                  </p>
+                </div>
+              </div>
+              <div
+                id="adminNearPromotionList"
+                style="margin-top: 1rem; max-height: 320px; overflow-y: auto"
+              >
+                <p class="empty-state">
+                  No vendors currently in near-promotion zone.
+                </p>
+              </div>
+            </div>
           </div>
-          <div style="overflow-x: auto;">
-            <table class="custom-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Action</th>
-                  <th>Resource</th>
-                  <th>Performed By</th>
-                  <th>Status</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody id="adminAuditTbody">
-                <tr><td colspan="6" class="empty-state">Loading audit logs...</td></tr>
-              </tbody>
-            </table>
+
+          <!-- Manual Commission Overrides Table -->
+          <div class="card mb-3">
+            <div class="card-header flex-between">
+              <div>
+                <h3>⚙️ Manual Commission Overrides</h3>
+                <p class="subtitle">
+                  Special vendor agreements overriding automatic tier rates
+                </p>
+              </div>
+            </div>
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Vendor</th>
+                    <th>Current Tier Rank</th>
+                    <th>Manual Commission</th>
+                    <th>Reason / Agreement</th>
+                    <th>Assigned Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminManualCommissionTbody">
+                  <tr>
+                    <td colspan="6" class="empty-state">
+                      No active manual commission overrides.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Dynamic Tier Configuration CRUD Table -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>🎖️ Tier Configuration & Thresholds</h3>
+                <p class="subtitle">
+                  Non-hardcoded dynamic tiers with volume limits and commission
+                  rates
+                </p>
+              </div>
+              <button
+                class="btn btn-sm btn-primary"
+                onclick="openCreateTierModal()"
+              >
+                ➕ Add New Tier
+              </button>
+            </div>
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Division & Level</th>
+                    <th>Tier Display Name</th>
+                    <th>Min Monthly Top-Up</th>
+                    <th>Max Monthly Top-Up</th>
+                    <th>Commission Rate (%)</th>
+                    <th>Priority Order</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminTiersTableTbody">
+                  <tr>
+                    <td colspan="8" class="empty-state">Loading tiers...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: PAYMENT DESTINATIONS -->
+        <div id="destinationsTab" class="tab-content hidden">
+          <div class="grid-2">
+            <!-- Destinations List -->
+            <div class="card">
+              <div class="card-header flex-between">
+                <h3>Company Payment Destinations</h3>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  onclick="fetchAdminDestinations()"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div id="adminDestinationsList" class="items-list">
+                <p class="empty-state">Loading destinations...</p>
+              </div>
+            </div>
+
+            <!-- Add Destination Form -->
+            <div class="card">
+              <div class="card-header">
+                <h3>➕ Add Company Destination</h3>
+                <p class="subtitle">
+                  Bank accounts and wallets for vendor top-ups
+                </p>
+              </div>
+              <form
+                id="addDestinationForm"
+                onsubmit="handleAddDestination(event)"
+              >
+                <div class="form-group">
+                  <label>Destination Type *</label>
+                  <select
+                    id="destType"
+                    required
+                    onchange="toggleDestTypeFields()"
+                  >
+                    <option value="bank">Bank Account</option>
+                    <option value="wallet">UPI / Wallet</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label>Display Name / Label *</label>
+                  <input
+                    type="text"
+                    id="destDisplayName"
+                    placeholder="e.g. Primary HDFC Current A/C"
+                    required
+                  />
+                </div>
+
+                <!-- Bank Fields -->
+                <div id="destBankFields">
+                  <div class="form-group">
+                    <label>Bank Name *</label>
+                    <input
+                      type="text"
+                      id="destBankName"
+                      placeholder="e.g. HDFC Bank"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>Account Number *</label>
+                    <input
+                      type="text"
+                      id="destAccountNumber"
+                      placeholder="e.g. 50100987654321"
+                    />
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>IFSC Code *</label>
+                      <input
+                        type="text"
+                        id="destIfsc"
+                        placeholder="HDFC0001234"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label>Branch Name</label>
+                      <input
+                        type="text"
+                        id="destBranch"
+                        placeholder="Main Branch"
+                      />
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Account Holder Name *</label>
+                    <input
+                      type="text"
+                      id="destHolderName"
+                      placeholder="Moffin Tech Pvt Ltd"
+                    />
+                  </div>
+                </div>
+
+                <!-- Wallet Fields -->
+                <div id="destWalletFields" class="hidden">
+                  <div class="form-group">
+                    <label>Wallet / UPI Name *</label>
+                    <input
+                      type="text"
+                      id="destWalletName"
+                      placeholder="e.g. Company Paytm / PhonePe"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>UPI ID / Wallet ID *</label>
+                    <input
+                      type="text"
+                      id="destWalletId"
+                      placeholder="moffin@okhdfcbank"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label
+                      >QR Code Image (Upload to Cloudinary - Optional)</label
+                    >
+                    <input
+                      type="file"
+                      id="destWalletQr"
+                      accept="image/jpeg,image/png,image/webp"
+                    />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Daily Limit (₹)</label>
+                    <input
+                      type="number"
+                      id="destDailyLimit"
+                      placeholder="e.g. 1000000"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>Min / Max Amount (₹)</label>
+                    <input
+                      type="text"
+                      id="destMinMax"
+                      placeholder="100 - 500000"
+                    />
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>Transfer Instructions / Notes</label>
+                  <input
+                    type="text"
+                    id="destInstructions"
+                    placeholder="e.g. Mention your vendor ID in remarks"
+                  />
+                </div>
+
+                <div class="form-check">
+                  <input type="checkbox" id="destIsActive" checked />
+                  <label for="destIsActive">Active for vendor selection</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  Save Destination
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: FCFS QUEUE & TIERS -->
+        <div id="fcfsTab" class="tab-content hidden">
+          <div class="grid-2">
+            <!-- FCFS Queue Table -->
+            <div class="card">
+              <div class="card-header flex-between">
+                <div>
+                  <h3>🎯 Live FCFS Priority Queue</h3>
+                  <p class="subtitle">
+                    Automatic client transaction allocation order
+                  </p>
+                </div>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  onclick="fetchAdminFcfsQueue()"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div style="overflow-x: auto">
+                <table class="custom-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Vendor</th>
+                      <th>Wallet Balance</th>
+                      <th>Skips</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminFcfsTbody">
+                    <tr>
+                      <td colspan="6" class="empty-state">
+                        Loading FCFS queue...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Commission Tiers -->
+            <div class="card">
+              <div class="card-header flex-between">
+                <div>
+                  <h3>🏷️ Commission Tiers</h3>
+                  <p class="subtitle">
+                    System tier rates applied to transactions
+                  </p>
+                </div>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  onclick="fetchAdminTiers()"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div id="adminTiersList" class="items-list">
+                <p class="empty-state">Loading tiers...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: AUDIT TRAIL -->
+        <div id="auditTab" class="tab-content hidden">
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>📜 System & Financial Audit Trail</h3>
+                <p class="subtitle">
+                  Immutable log of all administrative and financial actions
+                </p>
+              </div>
+              <button
+                class="btn btn-sm btn-secondary"
+                onclick="fetchAdminAuditLogs()"
+              >
+                🔄 Refresh
+              </button>
+            </div>
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>Performed By</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="adminAuditTbody">
+                  <tr>
+                    <td colspan="6" class="empty-state">
+                      Loading audit logs...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
+    </main>
 
-    </div>
-
-  </main>
-
-  <!-- MODAL 1: RESPOND TO TOP-UP REQUEST (Assign Destination) -->
-  <div id="respondTopUpModal" class="modal-backdrop hidden">
-    <div class="modal-card card">
-      <div class="card-header flex-between">
-        <h3>⚡ Assign Company Payment Destination</h3>
-        <button type="button" class="btn-close" onclick="closeRespondTopUpModal()">✕</button>
-      </div>
-      
-      <div id="modalTopUpInfo" class="info-box mb-3">
-        <!-- Injected via JS -->
-      </div>
-
-      <form id="respondTopUpForm" onsubmit="submitRespondTopUp(event)">
-        <input type="hidden" id="respondTopUpId">
-
-        <div class="form-group">
-          <div class="flex-between mb-2">
-            <label style="margin-bottom: 0;"><strong>Select Company Payment Destinations *</strong> (Select one or multiple)</label>
-            <button type="button" class="btn btn-sm btn-info" onclick="autoSelectInLimitDestinations()">✨ Auto-Select Best Matches</button>
-          </div>
-          
-          <div id="respondDestCheckboxes" style="display: flex; flex-direction: column; gap: 0.65rem; max-height: 280px; overflow-y: auto; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: #fafafa;">
-            <p class="text-muted" style="font-size: 0.85rem;">Loading company destinations...</p>
-          </div>
+    <!-- MODAL 1: RESPOND TO TOP-UP REQUEST (Assign Destination) -->
+    <div id="respondTopUpModal" class="modal-backdrop hidden">
+      <div class="modal-card card">
+        <div class="card-header flex-between">
+          <h3>⚡ Assign Company Payment Destination</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeRespondTopUpModal()"
+          >
+            ✕
+          </button>
         </div>
 
-        <div class="form-group">
-          <label>Approved Top-Up Amount (₹)</label>
-          <input type="number" id="respondApprovedAmount" placeholder="Leave blank to match requested amount" step="any">
+        <div id="modalTopUpInfo" class="info-box mb-3">
+          <!-- Injected via JS -->
         </div>
 
-        <div class="form-group">
-          <label>Admin Note / Transfer Instructions (Optional)</label>
-          <input type="text" id="respondNote" placeholder="e.g. Please transfer via IMPS only and mention vendor ID in remarks">
-        </div>
+        <form id="respondTopUpForm" onsubmit="submitRespondTopUp(event)">
+          <input type="hidden" id="respondTopUpId" />
 
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" onclick="closeRespondTopUpModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Send Destination(s) to Vendor</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL 2: REVIEW PAYMENT PROOF & ATOMIC APPROVAL -->
-  <div id="reviewProofModal" class="modal-backdrop hidden">
-    <div class="modal-card card" style="max-width: 600px;">
-      <div class="card-header flex-between">
-        <h3>🔍 Review Payment Proof & Verify</h3>
-        <button type="button" class="btn-close" onclick="closeReviewProofModal()">✕</button>
-      </div>
-
-      <div id="modalProofDetails">
-        <!-- Injected via JS -->
-      </div>
-
-      <div class="modal-actions" id="modalProofActions">
-        <!-- Injected via JS -->
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL 3: VENDOR DETAILS & KYC REVIEW -->
-  <div id="vendorDetailModal" class="modal-backdrop hidden">
-    <div class="modal-card card" style="max-width: 680px;">
-      <div class="card-header flex-between">
-        <h3>🔍 Vendor Details & KYC Review</h3>
-        <button type="button" class="btn-close" onclick="closeVendorDetailModal()">✕</button>
-      </div>
-
-      <div id="modalVendorContent">
-        <!-- Injected via JS -->
-      </div>
-
-      <div class="modal-actions" id="modalVendorActions">
-        <!-- Injected via JS -->
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL 4: REJECTION REASON MODAL -->
-  <div id="rejectionModal" class="modal-backdrop hidden">
-    <div class="modal-card card" style="max-width: 440px;">
-      <div class="card-header flex-between">
-        <h3 id="rejectionModalTitle">❌ Reject</h3>
-        <button type="button" class="btn-close" onclick="closeRejectionModal()">✕</button>
-      </div>
-      <form id="rejectionForm" onsubmit="submitGenericRejection(event)">
-        <input type="hidden" id="rejectionType">
-        <input type="hidden" id="rejectionTargetId">
-        <div class="form-group">
-          <label>Reason for Rejection *</label>
-          <textarea id="rejectionReasonInput" required placeholder="Enter clear reason for rejection..." style="width: 100%; height: 90px; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.9rem;"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" onclick="closeRejectionModal()">Cancel</button>
-          <button type="submit" class="btn btn-danger">Confirm Rejection</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL 5: EDIT COMPANY PAYMENT DESTINATION -->
-  <div id="editDestinationModal" class="modal-backdrop hidden">
-    <div class="modal-card card" style="max-width: 540px;">
-      <div class="card-header flex-between">
-        <h3>✏️ Edit Company Destination</h3>
-        <button type="button" class="btn-close" onclick="closeEditDestinationModal()">✕</button>
-      </div>
-      <form id="editDestinationForm" onsubmit="handleUpdateDestination(event)">
-        <input type="hidden" id="editDestId">
-        <input type="hidden" id="editDestType">
-
-        <div class="form-group">
-          <label>Display Name / Label *</label>
-          <input type="text" id="editDestDisplayName" required>
-        </div>
-
-        <!-- Bank Specific Fields -->
-        <div id="editDestBankFields">
           <div class="form-group">
-            <label>Bank Name *</label>
-            <input type="text" id="editDestBankName">
+            <div class="flex-between mb-2">
+              <label style="margin-bottom: 0"
+                ><strong>Select Company Payment Destinations *</strong> (Select
+                one or multiple)</label
+              >
+              <button
+                type="button"
+                class="btn btn-sm btn-info"
+                onclick="autoSelectInLimitDestinations()"
+              >
+                ✨ Auto-Select Best Matches
+              </button>
+            </div>
+
+            <div
+              id="respondDestCheckboxes"
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 0.65rem;
+                max-height: 280px;
+                overflow-y: auto;
+                padding: 0.75rem;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                background: #fafafa;
+              "
+            >
+              <p class="text-muted" style="font-size: 0.85rem">
+                Loading company destinations...
+              </p>
+            </div>
           </div>
+
           <div class="form-group">
-            <label>Account Number *</label>
-            <input type="text" id="editDestAccountNumber">
+            <label>Approved Top-Up Amount (₹)</label>
+            <input
+              type="number"
+              id="respondApprovedAmount"
+              placeholder="Leave blank to match requested amount"
+              step="any"
+            />
           </div>
+
+          <div class="form-group">
+            <label>Admin Note / Transfer Instructions (Optional)</label>
+            <input
+              type="text"
+              id="respondNote"
+              placeholder="e.g. Please transfer via IMPS only and mention vendor ID in remarks"
+            />
+          </div>
+
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeRespondTopUpModal()"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">
+              Send Destination(s) to Vendor
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 2: REVIEW PAYMENT PROOF & ATOMIC APPROVAL -->
+    <div id="reviewProofModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 600px">
+        <div class="card-header flex-between">
+          <h3>🔍 Review Payment Proof & Verify</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeReviewProofModal()"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div id="modalProofDetails">
+          <!-- Injected via JS -->
+        </div>
+
+        <div class="modal-actions" id="modalProofActions">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: VENDOR DETAILS & KYC REVIEW -->
+    <div id="vendorDetailModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 680px">
+        <div class="card-header flex-between">
+          <h3>🔍 Vendor Details & KYC Review</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeVendorDetailModal()"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div id="modalVendorContent">
+          <!-- Injected via JS -->
+        </div>
+
+        <div class="modal-actions" id="modalVendorActions">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 4: REJECTION REASON MODAL -->
+    <div id="rejectionModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 440px">
+        <div class="card-header flex-between">
+          <h3 id="rejectionModalTitle">❌ Reject</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeRejectionModal()"
+          >
+            ✕
+          </button>
+        </div>
+        <form id="rejectionForm" onsubmit="submitGenericRejection(event)">
+          <input type="hidden" id="rejectionType" />
+          <input type="hidden" id="rejectionTargetId" />
+          <div class="form-group">
+            <label>Reason for Rejection *</label>
+            <textarea
+              id="rejectionReasonInput"
+              required
+              placeholder="Enter clear reason for rejection..."
+              style="
+                width: 100%;
+                height: 90px;
+                padding: 0.65rem;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                font-family: inherit;
+                font-size: 0.9rem;
+              "
+            ></textarea>
+          </div>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeRejectionModal()"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-danger">
+              Confirm Rejection
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 5: EDIT COMPANY PAYMENT DESTINATION -->
+    <div id="editDestinationModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 540px">
+        <div class="card-header flex-between">
+          <h3>✏️ Edit Company Destination</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeEditDestinationModal()"
+          >
+            ✕
+          </button>
+        </div>
+        <form
+          id="editDestinationForm"
+          onsubmit="handleUpdateDestination(event)"
+        >
+          <input type="hidden" id="editDestId" />
+          <input type="hidden" id="editDestType" />
+
+          <div class="form-group">
+            <label>Display Name / Label *</label>
+            <input type="text" id="editDestDisplayName" required />
+          </div>
+
+          <!-- Bank Specific Fields -->
+          <div id="editDestBankFields">
+            <div class="form-group">
+              <label>Bank Name *</label>
+              <input type="text" id="editDestBankName" />
+            </div>
+            <div class="form-group">
+              <label>Account Number *</label>
+              <input type="text" id="editDestAccountNumber" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>IFSC Code *</label>
+                <input type="text" id="editDestIfsc" />
+              </div>
+              <div class="form-group">
+                <label>Branch Name</label>
+                <input type="text" id="editDestBranch" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Account Holder Name *</label>
+              <input type="text" id="editDestHolderName" />
+            </div>
+          </div>
+
+          <!-- Wallet Specific Fields -->
+          <div id="editDestWalletFields" class="hidden">
+            <div class="form-group">
+              <label>Wallet / UPI Name *</label>
+              <input type="text" id="editDestWalletName" />
+            </div>
+            <div class="form-group">
+              <label>UPI ID / Wallet ID *</label>
+              <input type="text" id="editDestWalletId" />
+            </div>
+            <div class="form-group">
+              <label>Change QR Code (Upload to Cloudinary)</label>
+              <input
+                type="file"
+                id="editDestWalletQr"
+                accept="image/jpeg,image/png,image/webp"
+              />
+              <p
+                id="editDestWalletQrCurrent"
+                style="
+                  font-size: 0.75rem;
+                  margin-top: 0.25rem;
+                  color: var(--text-muted);
+                "
+              ></p>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Daily Limit (₹)</label>
+            <input type="number" id="editDestDailyLimit" />
+          </div>
+
+          <div class="form-group">
+            <label>Transfer Instructions / Notes</label>
+            <input type="text" id="editDestInstructions" />
+          </div>
+
+          <div class="form-check">
+            <input type="checkbox" id="editDestIsActive" />
+            <label for="editDestIsActive"
+              >Active (Available for top-up allocation)</label
+            >
+          </div>
+
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeEditDestinationModal()"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 6: TOP-UP REQUEST FULL DETAILS MODAL -->
+    <div id="topUpDetailModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 650px">
+        <div class="card-header flex-between">
+          <h3>🔍 Top-Up Request Comprehensive Details</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeTopUpDetailModal()"
+          >
+            ✕
+          </button>
+        </div>
+        <div id="topUpDetailContent">
+          <!-- Injected via JS -->
+        </div>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick="closeTopUpDetailModal()"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 7: CREATE / EDIT TIER CONFIGURATION -->
+    <div id="tierModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 580px">
+        <div class="card-header flex-between">
+          <h3 id="tierModalTitle">➕ Create Tier</h3>
+          <button type="button" class="btn-close" onclick="closeTierModal()">
+            ✕
+          </button>
+        </div>
+        <form id="tierForm" onsubmit="handleSaveTier(event)">
+          <input type="hidden" id="tierModalId" />
+
           <div class="form-row">
             <div class="form-group">
-              <label>IFSC Code *</label>
-              <input type="text" id="editDestIfsc">
+              <label>Tier Name *</label>
+              <input
+                type="text"
+                id="tierFormName"
+                required
+                placeholder="e.g. Gold III"
+              />
             </div>
             <div class="form-group">
-              <label>Branch Name</label>
-              <input type="text" id="editDestBranch">
+              <label>Display Name *</label>
+              <input
+                type="text"
+                id="tierFormDisplayName"
+                required
+                placeholder="e.g. Gold III Elite"
+              />
             </div>
           </div>
-          <div class="form-group">
-            <label>Account Holder Name *</label>
-            <input type="text" id="editDestHolderName">
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Division Group *</label>
+              <select id="tierFormDivision">
+                <option value="Bronze">Bronze</option>
+                <option value="Silver">Silver</option>
+                <option value="Gold">Gold</option>
+                <option value="Platinum">Platinum</option>
+                <option value="Diamond">Diamond</option>
+                <option value="Crown">Crown</option>
+                <option value="Ace">Ace</option>
+                <option value="Custom">Custom</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Level / Sub-division</label>
+              <input
+                type="text"
+                id="tierFormLevel"
+                placeholder="e.g. V, IV, III, II, I"
+              />
+            </div>
           </div>
-        </div>
 
-        <!-- Wallet Specific Fields -->
-        <div id="editDestWalletFields" class="hidden">
-          <div class="form-group">
-            <label>Wallet / UPI Name *</label>
-            <input type="text" id="editDestWalletName">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Min Monthly Top-Up (₹) *</label>
+              <input
+                type="number"
+                id="tierFormMinTopUp"
+                required
+                min="0"
+                step="any"
+                placeholder="0"
+              />
+            </div>
+            <div class="form-group">
+              <label>Max Monthly Top-Up (₹)</label>
+              <input
+                type="number"
+                id="tierFormMaxTopUp"
+                min="0"
+                step="any"
+                placeholder="Leave blank for Ace (unlimited)"
+              />
+            </div>
           </div>
-          <div class="form-group">
-            <label>UPI ID / Wallet ID *</label>
-            <input type="text" id="editDestWalletId">
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Commission Rate (%) *</label>
+              <input
+                type="number"
+                id="tierFormCommissionRate"
+                required
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="e.g. 2.0"
+              />
+            </div>
+            <div class="form-group">
+              <label>Priority Order</label>
+              <input
+                type="number"
+                id="tierFormOrderPriority"
+                placeholder="10"
+              />
+            </div>
           </div>
-          <div class="form-group">
-            <label>Change QR Code (Upload to Cloudinary)</label>
-            <input type="file" id="editDestWalletQr" accept="image/jpeg,image/png,image/webp">
-            <p id="editDestWalletQrCurrent" style="font-size: 0.75rem; margin-top: 0.25rem; color: var(--text-muted);"></p>
+
+          <div class="form-check">
+            <input type="checkbox" id="tierFormIsActive" checked />
+            <label for="tierFormIsActive"
+              >Active Tier (Participates in automatic monthly ranking)</label
+            >
           </div>
-        </div>
 
-        <div class="form-group">
-          <label>Daily Limit (₹)</label>
-          <input type="number" id="editDestDailyLimit">
-        </div>
-
-        <div class="form-group">
-          <label>Transfer Instructions / Notes</label>
-          <input type="text" id="editDestInstructions">
-        </div>
-
-        <div class="form-check">
-          <input type="checkbox" id="editDestIsActive">
-          <label for="editDestIsActive">Active (Available for top-up allocation)</label>
-        </div>
-
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" onclick="closeEditDestinationModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Changes</button>
-        </div>
-      </form>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeTierModal()"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary" id="btnSaveTier">
+              Save Tier
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
 
-  <!-- MODAL 6: TOP-UP REQUEST FULL DETAILS MODAL -->
-  <div id="topUpDetailModal" class="modal-backdrop hidden">
-    <div class="modal-card card" style="max-width: 650px;">
-      <div class="card-header flex-between">
-        <h3>🔍 Top-Up Request Comprehensive Details</h3>
-        <button type="button" class="btn-close" onclick="closeTopUpDetailModal()">✕</button>
-      </div>
-      <div id="topUpDetailContent">
-        <!-- Injected via JS -->
-      </div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" onclick="closeTopUpDetailModal()">Close</button>
+    <!-- MODAL 8: MANUAL COMMISSION OVERRIDE MODAL -->
+    <div id="manualCommissionModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 520px">
+        <div class="card-header flex-between">
+          <h3>⚙️ Manual Commission Override</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeManualCommissionModal()"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="info-box mb-3">
+          <p style="margin: 0; font-size: 0.9rem">
+            Assigning a manual commission rate maintains the vendor's actual
+            tier rank but overrides their transaction commission rate.
+          </p>
+        </div>
+
+        <div
+          id="manualModalVendorInfo"
+          style="
+            background: #f8fafc;
+            padding: 0.85rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 1rem;
+          "
+        >
+          <!-- Injected via JS -->
+        </div>
+
+        <form
+          id="manualCommissionForm"
+          onsubmit="handleSaveManualCommission(event)"
+        >
+          <input type="hidden" id="manualVendorId" />
+
+          <div class="form-group">
+            <label>Manual Commission Rate (%) *</label>
+            <input
+              type="number"
+              id="manualCommissionInput"
+              required
+              min="0"
+              max="100"
+              step="0.01"
+              placeholder="e.g. 2.75"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Reason / Agreement Details *</label>
+            <textarea
+              id="manualCommissionReasonInput"
+              required
+              placeholder="e.g. Special VIP agreement approved by management"
+              style="
+                width: 100%;
+                height: 80px;
+                padding: 0.65rem;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                font-family: inherit;
+                font-size: 0.9rem;
+              "
+            ></textarea>
+          </div>
+
+          <div class="modal-actions flex-between" style="margin-top: 1.5rem">
+            <button
+              type="button"
+              class="btn btn-warning"
+              id="btnRevertAutoCommission"
+              onclick="handleRemoveManualCommission()"
+            >
+              Revert to Auto Tier Rate
+            </button>
+            <div style="display: flex; gap: 0.5rem">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onclick="closeManualCommissionModal()"
+              >
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-primary">
+                Apply Override
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
-  </div>
 
-  <script src="admin.js"></script>
-</body>
+    <script src="admin.js"></script>
+  </body>
 </html>

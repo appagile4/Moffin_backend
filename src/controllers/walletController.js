@@ -87,9 +87,27 @@ const adminGetVendorTransactions = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get authenticated vendor's live overview stats (Total top up, deposit, withdraw, commission)
+ * @route   GET /api/vendors/wallet/overview-stats
+ * @access  Private (Vendor)
+ */
+const getVendorOverviewStats = async (req, res) => {
+  try {
+    const vendorId = req.user.id || req.user._id;
+    const timeframe = req.query.timeframe || 'month';
+    const stats = await walletService.getVendorOverviewStats(vendorId, timeframe);
+    return sendSuccess(res, 200, 'Vendor overview statistics retrieved successfully', { stats });
+  } catch (error) {
+    console.error('getVendorOverviewStats Error:', error.message);
+    return sendError(res, 500, error.message || 'Failed to retrieve overview statistics');
+  }
+};
+
 module.exports = {
   getVendorWallet,
   getVendorTransactions,
+  getVendorOverviewStats,
   adminGetVendorWallet,
   adminGetVendorTransactions
 };

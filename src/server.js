@@ -59,9 +59,21 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Internal Server Error' });
 });
 
+// Start Background Schedulers
+const { startMonthlyTierScheduler } = require('./jobs/monthlyTierResetJob');
+startMonthlyTierScheduler();
+
 // Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
   console.log(`📡 URL: http://localhost:${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`⚠️ Port ${PORT} is already in use. Please terminate existing node processes holding port ${PORT}.`);
+  } else {
+    console.error('Server error:', err);
+  }
 });

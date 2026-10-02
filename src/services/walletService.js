@@ -110,6 +110,20 @@ const creditWallet = async ({
     await txDoc.save();
   }
 
+  // 5. Automatically recalculate monthly tier if this credit was a top-up
+  if (transactionType === 'CREDIT_TOPUP') {
+    try {
+      const { recalculateVendorMonthlyTier } = require('./tierCalculationService');
+      await recalculateVendorMonthlyTier(vendorId, {
+        topUpAmount: numAmount,
+        reason: description || 'Wallet credited with top-up',
+        session
+      });
+    } catch (tierErr) {
+      console.error('Tier recalculation error in creditWallet:', tierErr.message);
+    }
+  }
+
   return {
     wallet: updatedWallet,
     transaction: txDoc
@@ -246,11 +260,93 @@ const getWalletTransactions = async (vendorId, { page = 1, limit = 20, transacti
   };
 };
 
+/**
+ * Get Vendor Overview Stats filtered by timeframe
+ */
+const getVendorOverviewStats = async (vendorId, timeframe = 'month') => {
+  const now = new Date();
+  let startDate = null;
+
+  if (timeframe === 'today') {
+    startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+  } else if (timeframe === 'week') {
+    startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+  } else if (timeframe === 'month') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (timeframe === 'year') {
+    startDate = new Date(now.getFullYear(), 0, 1);
+  }
+
+  const matchQuery = { vendorId: new mongoose.Types.ObjectId(vendorId.toString()) };
+  if (startDate) {
+    matchQuery.createdAt = { $gte: startDate };
+  }
+
+  const pipeline = [
+    { $match: matchQuery },
+    {
+      $group: {
+        _id: null,
+        totalTopUp: {
+          $sum: {
+            $cond: [{ $eq: ['$transactionType', 'CREDIT_TOPUP'] }, '$amount', 0]
+          }
+        },
+        totalDeposit: {
+          $sum: {
+            $cond: [{ $in: ['$transactionType', ['CREDIT_TOPUP', 'COMMISSION_CREDIT', 'ADJUSTMENT']] }, '$amount', 0]
+          }
+        },
+        totalWithdraw: {
+          $sum: {
+            $cond: [{ $in: ['$transactionType', ['WITHDRAWAL', 'DEBIT_CLIENT_TRANSACTION']] }, '$amount', 0]
+          }
+        },
+        totalCommission: {
+          $sum: {
+            $cond: [{ $eq: ['$transactionType', 'COMMISSION_CREDIT'] }, '$amount', 0]
+          }
+        }
+      }
+    }
+  ];
+
+  const result = await WalletTransaction.aggregate(pipeline);
+  const stats = result[0] || {
+    totalTopUp: 0,
+    totalDeposit: 0,
+    totalWithdraw: 0,
+    totalCommission: 0
+  };
+
+  if (timeframe === 'all' && (!result || result.length === 0)) {
+    const wallet = await getOrCreateVendorWallet(vendorId);
+    return {
+      totalTopUp: wallet.totalDeposited || 0,
+      totalDeposit: wallet.totalDeposited || 0,
+      totalWithdraw: wallet.totalWithdrawn || 0,
+      totalCommission: wallet.totalCommissionEarned || 0,
+      timeframe
+    };
+  }
+
+  return {
+    totalTopUp: stats.totalTopUp || 0,
+    totalDeposit: stats.totalDeposit || 0,
+    totalWithdraw: stats.totalWithdraw || 0,
+    totalCommission: stats.totalCommission || 0,
+    timeframe
+  };
+};
+
 module.exports = {
   getOrCreateVendorWallet,
   creditWallet,
   debitWallet,
   getWalletBalance,
   getWalletTransactions,
+  getVendorOverviewStats,
   generateTransactionNumber
 };

@@ -122,6 +122,14 @@
         </div>
         <div class="overview-status">
           <div class="status-item">
+            <span class="label">Tier Rank</span>
+            <span id="dashTierBadge" class="badge badge-tier-bronze">Bronze V</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Effective Commission</span>
+            <span id="dashCommissionBadge" class="badge badge-info">--%</span>
+          </div>
+          <div class="status-item">
             <span class="label">KYC Verification</span>
             <span id="dashStatusBadge" class="badge badge-pending">Pending</span>
           </div>
@@ -135,6 +143,7 @@
       <!-- Tabs Navigation -->
       <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('walletTab')">💰 Wallet & Ledger</button>
+        <button class="tab-btn" onclick="switchTab('tiersTab')">🏆 Tiers & Rank</button>
         <button class="tab-btn" onclick="switchTab('topupsTab')">⚡ Top-Up Requests</button>
         <button class="tab-btn" onclick="switchTab('banksTab')">🏦 Bank Accounts</button>
         <button class="tab-btn" onclick="switchTab('walletsTab')">👛 Wallets & UPI</button>
@@ -143,28 +152,87 @@
 
       <!-- TAB 1: WALLET & LEDGER -->
       <div id="walletTab" class="tab-content">
-        <!-- Balance KPI Cards -->
-        <div class="stats-grid">
-          <div class="stat-card" style="border-left: 4px solid #10b981;">
-            <span class="stat-title">Available Balance</span>
-            <span class="stat-value" id="walletAvailableBalance">₹0.00</span>
-            <span class="stat-subtitle">Funds ready for client allocation</span>
+        <!-- Live Overview & Quick Actions Panel (Image 2 Redesign) -->
+        <div class="overview-panel">
+          
+          <!-- Quick Action Buttons -->
+          <div class="quick-actions-bar">
+            <button class="action-btn-item" onclick="switchTab('topupsTab')">
+              <div class="action-icon-box action-icon-green">↑</div>
+              <span class="action-btn-label">Top-up</span>
+            </button>
+            <button class="action-btn-item" onclick="switchTab('banksTab')">
+              <div class="action-icon-box action-icon-blue">↓</div>
+              <span class="action-btn-label">Deposit</span>
+            </button>
+            <button class="action-btn-item" onclick="openWithdrawModal()">
+              <div class="action-icon-box action-icon-purple">↗</div>
+              <span class="action-btn-label">withdraw</span>
+            </button>
+            <button class="action-btn-item" onclick="openTransferModal()">
+              <div class="action-icon-box action-icon-orange">⇄</div>
+              <span class="action-btn-label">Transfer</span>
+            </button>
           </div>
-          <div class="stat-card" style="border-left: 4px solid #f59e0b;">
-            <span class="stat-title">Locked Balance</span>
-            <span class="stat-value" id="walletLockedBalance" style="color: #d97706;">₹0.00</span>
-            <span class="stat-subtitle">Funds held in pending processing</span>
+
+          <!-- Live Overview Bar -->
+          <div class="live-overview-bar">
+            <div class="live-overview-title">
+              <span>🎯</span>
+              <span>Live Overview</span>
+            </div>
+            <div>
+              <select id="overviewTimeframeSelect" class="timeframe-select" onchange="fetchVendorOverviewStats(this.value)">
+                <option value="month" selected>This Month</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="year">This Year</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
           </div>
-          <div class="stat-card" style="border-left: 4px solid #4f46e5;">
-            <span class="stat-title">Commission Tier</span>
-            <span class="stat-value" id="vendorTierName" style="font-size: 1.4rem; color: #4338ca;">Bronze</span>
-            <span class="stat-subtitle" id="vendorTierRate">Fee: 2.0%</span>
+
+          <!-- 4 Overview KPI Cards -->
+          <div class="overview-cards-grid">
+            
+            <!-- 1. Total top up -->
+            <div class="ov-stat-card">
+              <div class="ov-stat-header">
+                <div class="ov-icon-badge ov-icon-green">↑</div>
+                <span class="ov-label">Total top up</span>
+              </div>
+              <div class="ov-value" id="overviewTotalTopUp">₹ 0.00</div>
+            </div>
+
+            <!-- 2. Total Deposit -->
+            <div class="ov-stat-card">
+              <div class="ov-stat-header">
+                <div class="ov-icon-badge ov-icon-blue">↓</div>
+                <span class="ov-label">Total Deposit</span>
+              </div>
+              <div class="ov-value" id="overviewTotalDeposit">₹ 0.00</div>
+            </div>
+
+            <!-- 3. Total Withdraw -->
+            <div class="ov-stat-card">
+              <div class="ov-stat-header">
+                <div class="ov-icon-badge ov-icon-purple">↗</div>
+                <span class="ov-label">Total Withdraw</span>
+              </div>
+              <div class="ov-value" id="overviewTotalWithdraw">₹ 0.00</div>
+            </div>
+
+            <!-- 4. Total Commission -->
+            <div class="ov-stat-card">
+              <div class="ov-stat-header">
+                <div class="ov-icon-badge ov-icon-pink">%</div>
+                <span class="ov-label">Total Commission</span>
+              </div>
+              <div class="ov-value" id="overviewTotalCommission">₹ 0.00</div>
+            </div>
+
           </div>
-          <div class="stat-card" style="border-left: 4px solid #0284c7;">
-            <span class="stat-title">FCFS Queue Status</span>
-            <span class="stat-value" id="vendorQueuePosition" style="font-size: 1.4rem; color: #0284c7;">#1</span>
-            <span class="stat-subtitle" id="vendorQueueSkips">Skips: 0</span>
-          </div>
+
         </div>
 
         <!-- Ledger Table Card -->
@@ -439,6 +507,140 @@
           </div>
 
         </div>
+      </div>
+
+      <!-- TAB: TIERS & RANK -->
+      <div id="tiersTab" class="tab-content hidden">
+        
+        <!-- Hero Rank Progress Card -->
+        <div class="tier-hero-card">
+          <div class="tier-hero-header">
+            <div class="tier-rank-display">
+              <div class="tier-rank-emblem" id="tierEmblem">🏆</div>
+              <div class="tier-rank-info">
+                <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.25rem;">
+                  <h2 id="tierHeroDisplayName" style="margin: 0;">Bronze V</h2>
+                  <span id="tierHeroDivisionBadge" class="badge badge-tier-bronze">BRONZE</span>
+                  <span id="tierMonthBadge" class="badge" style="background: rgba(255,255,255,0.2); color: #fff;">October 2026</span>
+                </div>
+                <p id="tierHeroSubtitle">Complete top-ups this month to advance your rank and boost your commission rate!</p>
+              </div>
+            </div>
+            <div>
+              <button class="btn btn-sm btn-secondary" onclick="fetchVendorTierProgress()" style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); color: #fff;">🔄 Refresh Rank</button>
+            </div>
+          </div>
+
+          <!-- Key Metrics -->
+          <div class="tier-metrics-grid">
+            <div class="tier-metric-box">
+              <span class="label">Current Month Top-Up</span>
+              <span class="val" id="tierHeroMonthlyTopUp">₹0</span>
+            </div>
+            <div class="tier-metric-box">
+              <span class="label">Next Rank Goal</span>
+              <span class="val" id="tierHeroNextTier">Bronze IV</span>
+            </div>
+            <div class="tier-metric-box">
+              <span class="label">Amount Needed to Rank Up</span>
+              <span class="val" id="tierHeroAmountNeeded" style="color: #67e8f9;">₹1,00,000</span>
+            </div>
+            <div class="tier-metric-box">
+              <span class="label">Your Commission Rate</span>
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem;">
+                <span class="val" id="tierHeroCommission" style="color: #a7f3d0;">1.0%</span>
+                <span id="tierHeroCommissionMode" class="badge badge-mode-auto">AUTO</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div>
+            <div class="tier-progress-labels">
+              <span>Progress to Next Rank</span>
+              <span id="tierProgressPercentageText" style="font-weight: 700;">0%</span>
+            </div>
+            <div class="tier-progress-container">
+              <div class="tier-progress-fill" id="tierProgressBar" style="width: 0%;"></div>
+            </div>
+            <div class="tier-progress-labels" style="margin-top: 0.25rem;">
+              <span id="tierProgressStartLabel">₹0</span>
+              <span id="tierProgressEndLabel">₹1,00,000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Two Columns: Recent Movements & Past History -->
+        <div class="grid-2 mb-3">
+          
+          <!-- Rank Movements Timeline -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>📈 Current Month Rank Movements</h3>
+                <p class="subtitle">Live log of your tier promotions during this cycle</p>
+              </div>
+            </div>
+            <div id="tierMovementsList" class="timeline" style="margin-top: 1rem; max-height: 320px; overflow-y: auto;">
+              <p class="empty-state">No rank movements recorded this month yet.</p>
+            </div>
+          </div>
+
+          <!-- Historical Performance Table -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>📜 Past Months Performance</h3>
+                <p class="subtitle">Immutable record of previous monthly tier cycles</p>
+              </div>
+            </div>
+            <div style="overflow-x: auto; max-height: 320px;">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>Final Top-Up</th>
+                    <th>Final Tier</th>
+                    <th>Commission</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tierHistoryTbody">
+                  <tr><td colspan="5" class="empty-state">Loading monthly history...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Tiers Full Reference Matrix Table -->
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <h3>🎖️ Complete Tier Progression Ladder</h3>
+              <p class="subtitle">All available ranks, required monthly top-up to unlock each rank, and your current position</p>
+            </div>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Rank & Division</th>
+                  <th>Tier Name</th>
+                  <th>Monthly Top-Up Range</th>
+                  <th>Commission Rate</th>
+                  <th>Top-Up Required to Reach</th>
+                  <th>Your Status</th>
+                </tr>
+              </thead>
+              <tbody id="tierMatrixTbody">
+                <tr><td colspan="6" class="empty-state">Loading tier progression ladder...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
     </div>

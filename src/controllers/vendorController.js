@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Vendor = require('../models/vendorModel');
+const VendorMonthlyTier = require('../models/vendorMonthlyTierModel');
+const { getKolkataDate } = require('../services/tierCalculationService');
 const { uploadToCloudinary } = require('../config/cloudinary');
 
 /**
@@ -931,8 +933,44 @@ const getAllVendors = async (req, res) => {
       Vendor.countDocuments(query)
     ]);
 
+    // Enrich vendors with current month tier and commission state
+    const { year, month } = getKolkataDate();
+    const vendorIds = vendors.map(v => v._id);
+    const monthlyTiers = await VendorMonthlyTier.find({
+      vendorId: { $in: vendorIds },
+      year,
+      month
+    }).lean();
+
+    const monthlyTierMap = {};
+    monthlyTiers.forEach(m => {
+      monthlyTierMap[m.vendorId.toString()] = m;
+    });
+
+    const enrichedVendors = vendors.map(v => {
+      const vObj = v.toObject ? v.toObject() : { ...v };
+      const m = monthlyTierMap[v._id.toString()];
+      if (m) {
+        vObj.currentTierName = m.currentTierDisplayName || m.currentTierName;
+        vObj.currentTierDisplayName = m.currentTierDisplayName || m.currentTierName;
+        vObj.commissionMode = m.commissionMode || 'AUTO';
+        vObj.manualCommissionRate = m.manualCommissionRate;
+        vObj.manualCommissionReason = m.manualCommissionReason;
+        vObj.effectiveCommissionRate = m.effectiveCommissionRate;
+        vObj.totalMonthlyTopUp = m.totalTopUp || 0;
+      } else {
+        vObj.currentTierName = vObj.currentTier || 'Bronze V';
+        vObj.currentTierDisplayName = vObj.currentTier || 'Bronze V';
+        vObj.commissionMode = vObj.commissionMode || 'AUTO';
+        vObj.manualCommissionRate = vObj.manualCommissionRate || null;
+        vObj.effectiveCommissionRate = vObj.effectiveCommissionRate || 1.0;
+        vObj.totalMonthlyTopUp = 0;
+      }
+      return vObj;
+    });
+
     return sendSuccess(res, 200, 'Vendors retrieved successfully', {
-      vendors,
+      vendors: enrichedVendors,
       pagination: {
         total,
         page,
@@ -964,7 +1002,20 @@ const getVendorById = async (req, res) => {
       return sendError(res, 404, 'Vendor not found');
     }
 
-    return sendSuccess(res, 200, 'Vendor details retrieved successfully', { vendor });
+    const { year, month } = getKolkataDate();
+    const m = await VendorMonthlyTier.findOne({ vendorId: vendor._id, year, month }).lean();
+    const vObj = vendor.toObject ? vendor.toObject() : { ...vendor };
+    if (m) {
+      vObj.currentTierName = m.currentTierDisplayName || m.currentTierName;
+      vObj.currentTierDisplayName = m.currentTierDisplayName || m.currentTierName;
+      vObj.commissionMode = m.commissionMode || 'AUTO';
+      vObj.manualCommissionRate = m.manualCommissionRate;
+      vObj.manualCommissionReason = m.manualCommissionReason;
+      vObj.effectiveCommissionRate = m.effectiveCommissionRate;
+      vObj.totalMonthlyTopUp = m.totalTopUp || 0;
+    }
+
+    return sendSuccess(res, 200, 'Vendor details retrieved successfully', { vendor: vObj });
   } catch (error) {
     console.error('getVendorById Error:', error);
     return sendError(res, 500, error.message || 'Internal server error while fetching vendor details');

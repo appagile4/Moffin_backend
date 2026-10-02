@@ -384,13 +384,13 @@ async function runTests() {
     'Skipped vendor remains active at their priority position in FCFS queue'
   );
 
-  // TEST 16 & 17: Commission calculated and snapshot stored
-  // For ₹60,000: Silver tier (50,001 - 200,000) -> 1.5% commission = ₹900
+  // TEST 18: Commission calculated and snapshot stored based on Vendor B's monthly tier
+  // Vendor B starting tier is Bronze V -> 1.0% commission = ₹600
   assert(
-    alloc2.transaction.tierAtTransaction === 'Silver' &&
-      alloc2.transaction.commissionPercentage === 1.5 &&
-      alloc2.transaction.commissionAmount === 900,
-    'Commission is calculated accurately (1.5% = ₹900) and tier snapshot is stored'
+    alloc2.transaction.tierAtTransaction.startsWith('Bronze') &&
+      alloc2.transaction.commissionPercentage === 1.0 &&
+      alloc2.transaction.commissionAmount === 600,
+    'Commission is calculated accurately based on monthly tier (1.0% = ₹600) and snapshot is stored'
   );
 
   // TEST 18: Concurrent transactions cannot overspend vendor balance
@@ -455,9 +455,11 @@ async function runTests() {
   await VendorWallet.deleteMany({ vendorId: { $in: [vendorA._id, vendorB._id, vendorC._id] } });
   await WalletTransaction.deleteMany({ vendorId: { $in: [vendorA._id, vendorB._id, vendorC._id] } });
   await FCFSQueue.deleteMany({ vendorId: { $in: [vendorA._id, vendorB._id, vendorC._id] } });
-  await ClientTransaction.deleteMany({ vendorId: { $in: [vendorA._id, vendorB._id, vendorC._id] } });
-
   await mongoose.disconnect();
+
+  // Run Monthly Tier Engine Test Suite
+  const { runTierTests } = require('./tierSystemTests');
+  await runTierTests();
 }
 
 runTests().catch((err) => {

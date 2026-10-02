@@ -579,3 +579,408 @@ input:focus, select:focus, textarea:focus {
   color: #1e40af;
   margin-bottom: 1rem;
 }
+
+/* ==========================================================================
+   Vendor Tier & Rank System Styles
+   ========================================================================== */
+.badge-tier-bronze { background: #fff7ed; color: #9a3412; border: 1px solid #ffedd5; font-weight: 700; }
+.badge-tier-silver { background: #f4f4f5; color: #52525b; border: 1px solid #e4e4e7; font-weight: 700; }
+.badge-tier-gold { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; font-weight: 700; }
+.badge-tier-platinum { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; font-weight: 700; }
+.badge-tier-diamond { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; font-weight: 700; }
+.badge-tier-crown { background: #faf5ff; color: #7c3aed; border: 1px solid #e9d5ff; font-weight: 700; }
+.badge-tier-ace { background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; font-weight: 800; }
+
+.badge-mode-auto { background: #e0e7ff; color: #3730a3; font-weight: 600; }
+.badge-mode-manual { background: #fef3c7; color: #92400e; font-weight: 700; border: 1px dashed #f59e0b; }
+
+/* Hero Tier Progress Card */
+.tier-hero-card {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+  color: #ffffff;
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 10px 25px -5px rgba(67, 56, 202, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.tier-hero-card::before {
+  content: "🏆";
+  position: absolute;
+  right: -20px;
+  bottom: -20px;
+  font-size: 10rem;
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+.tier-hero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.tier-rank-display {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.tier-rank-emblem {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.25rem;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.tier-rank-info h2 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.25rem;
+}
+
+.tier-rank-info p {
+  font-size: 0.9rem;
+  color: #c7d2fe;
+}
+
+.tier-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.tier-metric-box {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.tier-metric-box .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #c7d2fe;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.tier-metric-box .val {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Tier Progress Bar */
+.tier-progress-container {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  height: 14px;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  margin: 0.75rem 0 0.5rem 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.tier-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #f472b6 100%);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tier-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #c7d2fe;
+}
+
+/* Tier Table Active Highlight */
+.row-active-tier {
+  background-color: #f0fdf4 !important;
+  font-weight: 600;
+  border-left: 4px solid #10b981;
+}
+
+/* Timeline */
+.timeline {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 1.25rem;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -1.5rem;
+  top: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+.timeline-content {
+  background: var(--bg-main);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Analytics Distribution Bar */
+.dist-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.dist-bar-label {
+  width: 130px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.dist-bar-track {
+  flex: 1;
+  background: #f1f5f9;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.dist-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
+}
+
+.dist-bar-count {
+  width: 60px;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Live Overview & Quick Action Panel Styles (Image 2 Redesign)
+   ========================================================================== */
+.overview-panel {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.quick-actions-bar {
+  background: #f1f5f9;
+  padding: 1.25rem 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+@media (max-width: 640px) {
+  .quick-actions-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.action-btn-item {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem;
+  border-radius: 12px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.action-btn-item:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.action-icon-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.15s ease;
+}
+
+.action-btn-item:hover .action-icon-box {
+  transform: scale(1.05);
+}
+
+.action-icon-green {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.action-icon-blue {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.action-icon-purple {
+  background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+}
+
+.action-icon-orange {
+  background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
+}
+
+.action-btn-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.live-overview-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem 0.25rem 1.5rem;
+}
+
+.live-overview-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.timeframe-select {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  outline: none;
+}
+
+.timeframe-select:focus {
+  border-color: var(--primary);
+}
+
+.overview-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .overview-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ov-stat-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.15rem 1.35rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.ov-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+
+.ov-stat-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.ov-icon-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.ov-icon-green { background: #22c55e; }
+.ov-icon-blue { background: #3b82f6; }
+.ov-icon-purple { background: #a855f7; }
+.ov-icon-pink { background: #ec4899; }
+
+.ov-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.ov-value {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+

@@ -72,15 +72,30 @@ function showDashboardSection() {
   document.getElementById('logoutBtn').classList.remove('hidden');
 }
 
-function switchTab(tabId) {
+function switchTab(tabId, btnEl = null) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
 
   const targetEl = document.getElementById(tabId);
   if (targetEl) targetEl.classList.remove('hidden');
-  if (event && event.target) event.target.classList.add('active');
+  
+  if (btnEl) {
+    btnEl.classList.add('active');
+  } else if (typeof event !== 'undefined' && event && event.target && event.target.classList.contains('tab-btn')) {
+    event.target.classList.add('active');
+  } else {
+    const defaultBtn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
+    if (defaultBtn) defaultBtn.classList.add('active');
+  }
 
   if (tabId === 'walletTab') fetchVendorWalletAndLedger();
+  if (tabId === 'tiersTab') {
+    fetchVendorTierProgress().then(() => {
+      fetchVendorTiersList();
+    });
+    fetchVendorTierMovements();
+    fetchVendorTierHistory();
+  }
   if (tabId === 'topupsTab') fetchVendorTopUps();
   if (tabId === 'banksTab') fetchBankAccounts();
   if (tabId === 'walletsTab') fetchWallets();
@@ -177,6 +192,7 @@ async function loadVendorProfile() {
       renderDashboardOverview();
       showDashboardSection();
       fetchVendorWalletAndLedger();
+      fetchVendorTierProgress();
       fetchBankAccounts();
       fetchWallets();
     } else {
@@ -309,33 +325,41 @@ async function handleChangePassword(event) {
 }
 
 /**
- * 7. Wallet & Immutable Ledger
+ * 7. Wallet & Immutable Ledger & Live Overview Stats (Image 2 Redesign)
  */
+async function fetchVendorOverviewStats(timeframe = 'month') {
+  if (!currentToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/wallet/overview-stats?timeframe=${timeframe}`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const data = await res.json();
+
+    if (data.success && data.data?.stats) {
+      const s = data.data.stats;
+      const topUpEl = document.getElementById('overviewTotalTopUp');
+      const depositEl = document.getElementById('overviewTotalDeposit');
+      const withdrawEl = document.getElementById('overviewTotalWithdraw');
+      const commEl = document.getElementById('overviewTotalCommission');
+
+      if (topUpEl) topUpEl.textContent = `₹ ${(s.totalTopUp || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      if (depositEl) depositEl.textContent = `₹ ${(s.totalDeposit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      if (withdrawEl) withdrawEl.textContent = `₹ ${(s.totalWithdraw || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      if (commEl) commEl.textContent = `₹ ${(s.totalCommission || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    }
+  } catch (err) {
+    console.error('fetchVendorOverviewStats error:', err);
+  }
+}
+
 async function fetchVendorWalletAndLedger() {
   if (!currentToken) return;
 
   try {
-    // 1. Fetch Wallet Info & Tier
-    const resWallet = await fetch(`${API_BASE}/vendors/wallet`, {
-      headers: { 'Authorization': `Bearer ${currentToken}` }
-    });
-    const walletData = await resWallet.json();
-
-    if (walletData.success && walletData.data) {
-      const { wallet, tier, queueStatus } = walletData.data;
-      if (wallet) {
-        document.getElementById('walletAvailableBalance').textContent = `₹${(wallet.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-        document.getElementById('walletLockedBalance').textContent = `₹${(wallet.lockedBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-      }
-      if (tier) {
-        document.getElementById('vendorTierName').textContent = tier.tierName || 'Bronze';
-        document.getElementById('vendorTierRate').textContent = `Fee: ${tier.commissionPercentage ?? 2}%`;
-      }
-      if (queueStatus) {
-        document.getElementById('vendorQueuePosition').textContent = queueStatus.priority ? `#${queueStatus.priority}` : 'Active';
-        document.getElementById('vendorQueueSkips').textContent = `Skips: ${queueStatus.consecutiveSkips ?? 0}`;
-      }
-    }
+    // 1. Fetch Live Overview Statistics
+    const selectedTimeframe = document.getElementById('overviewTimeframeSelect')?.value || 'month';
+    fetchVendorOverviewStats(selectedTimeframe);
 
     // 2. Fetch Ledger Transactions
     const resLedger = await fetch(`${API_BASE}/vendors/wallet/ledger?limit=50`, {
@@ -344,7 +368,7 @@ async function fetchVendorWalletAndLedger() {
     const ledgerData = await resLedger.json();
 
     const tbody = document.getElementById('walletLedgerTbody');
-    if (ledgerData.success && ledgerData.data?.transactions?.length > 0) {
+    if (tbody && ledgerData.success && ledgerData.data?.transactions?.length > 0) {
       tbody.innerHTML = ledgerData.data.transactions.map(t => {
         const isCredit = t.transactionType.startsWith('CREDIT');
         const amountDisplay = `${isCredit ? '+' : '-'}₹${(t.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -363,12 +387,20 @@ async function fetchVendorWalletAndLedger() {
           </tr>
         `;
       }).join('');
-    } else {
+    } else if (tbody) {
       tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No transactions in ledger yet. Top up your wallet to begin.</td></tr>';
     }
   } catch (err) {
     console.error('fetchVendorWalletAndLedger error:', err);
   }
+}
+
+function openWithdrawModal() {
+  showToast('Withdrawals / Payouts module is active. To withdraw, contact your account manager.', 'info');
+}
+
+function openTransferModal() {
+  showToast('Inter-wallet transfers are available through company payment destinations.', 'info');
 }
 
 /**
@@ -1150,7 +1182,280 @@ async function deleteWallet(id) {
 }
 
 /**
- * 11. Logout
+ * 11. Tier & Ranking System
+ */
+let cachedCurrentTierId = null;
+let cachedCurrentTierName = '';
+let cachedVendorMonthlyTopUp = 0;
+
+function getTierBadgeClass(divisionGroup = '', tierName = '') {
+  const text = (divisionGroup || tierName || '').toUpperCase();
+  if (text.includes('ACE')) return 'badge-tier-ace';
+  if (text.includes('CROWN')) return 'badge-tier-crown';
+  if (text.includes('DIAMOND')) return 'badge-tier-diamond';
+  if (text.includes('PLATINUM')) return 'badge-tier-platinum';
+  if (text.includes('GOLD')) return 'badge-tier-gold';
+  if (text.includes('SILVER')) return 'badge-tier-silver';
+  return 'badge-tier-bronze';
+}
+
+function getTierEmblem(divisionGroup = '', tierName = '') {
+  const text = (divisionGroup || tierName || '').toUpperCase();
+  if (text.includes('ACE')) return '🔥';
+  if (text.includes('CROWN')) return '👑';
+  if (text.includes('DIAMOND')) return '💎';
+  if (text.includes('PLATINUM')) return '🛡️';
+  if (text.includes('GOLD')) return '🥇';
+  if (text.includes('SILVER')) return '🥈';
+  return '🥉';
+}
+
+async function fetchVendorTierProgress() {
+  if (!currentToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/tier-progress`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const data = await res.json();
+    if (!data.success || !data.data) return;
+
+    const p = data.data.progress || data.data;
+    const currentTier = p.currentTier || {};
+    const nextTier = p.nextTier;
+    
+    cachedCurrentTierId = currentTier.id || currentTier._id;
+    cachedCurrentTierName = currentTier.displayName || currentTier.name || p.currentTierName || 'Bronze V';
+    cachedVendorMonthlyTopUp = Number(p.totalMonthlyTopUp) || 0;
+
+    const tierDisplayName = cachedCurrentTierName;
+    const effectiveRate = p.effectiveCommissionRate !== undefined 
+      ? p.effectiveCommissionRate 
+      : (p.commission?.effectiveRate !== undefined ? p.commission.effectiveRate : 1.0);
+    const commMode = p.commissionMode || p.commission?.mode || 'AUTO';
+    const isManual = commMode === 'MANUAL';
+    const isMaxTier = p.isMaxTier || !nextTier || tierDisplayName === 'Ace';
+
+    // 1. Top Navbar / Header overview badges
+    const dashTierBadge = document.getElementById('dashTierBadge');
+    if (dashTierBadge) {
+      dashTierBadge.textContent = tierDisplayName;
+      dashTierBadge.className = `badge ${getTierBadgeClass(currentTier.divisionGroup, tierDisplayName)}`;
+    }
+
+    const dashCommissionBadge = document.getElementById('dashCommissionBadge');
+    if (dashCommissionBadge) {
+      const modeSuffix = isManual ? ' (MANUAL)' : '';
+      dashCommissionBadge.textContent = `${effectiveRate}%${modeSuffix}`;
+      dashCommissionBadge.className = `badge ${isManual ? 'badge-mode-manual' : 'badge-info'}`;
+    }
+
+    // 2. Wallet KPI tier card if exists
+    const vendorTierNameEl = document.getElementById('vendorTierName');
+    if (vendorTierNameEl) {
+      vendorTierNameEl.textContent = `${tierDisplayName} (${effectiveRate}%)`;
+    }
+
+    // 3. Hero Rank Card
+    const emblemEl = document.getElementById('tierEmblem');
+    if (emblemEl) emblemEl.textContent = getTierEmblem(currentTier.divisionGroup, tierDisplayName);
+
+    const heroDisplayName = document.getElementById('tierHeroDisplayName');
+    if (heroDisplayName) heroDisplayName.textContent = tierDisplayName;
+
+    const heroDivisionBadge = document.getElementById('tierHeroDivisionBadge');
+    if (heroDivisionBadge) {
+      heroDivisionBadge.textContent = (currentTier.divisionGroup || tierDisplayName.split(' ')[0] || 'BRONZE').toUpperCase();
+      heroDivisionBadge.className = `badge ${getTierBadgeClass(currentTier.divisionGroup, tierDisplayName)}`;
+    }
+
+    const monthBadge = document.getElementById('tierMonthBadge');
+    if (monthBadge) monthBadge.textContent = p.monthLabel || 'Current Month';
+
+    const heroMonthlyTopUp = document.getElementById('tierHeroMonthlyTopUp');
+    if (heroMonthlyTopUp) heroMonthlyTopUp.textContent = `₹${cachedVendorMonthlyTopUp.toLocaleString('en-IN')}`;
+
+    const heroNextTier = document.getElementById('tierHeroNextTier');
+    if (heroNextTier) {
+      heroNextTier.textContent = isMaxTier ? '🏆 Max Rank Achieved' : (nextTier?.displayName || nextTier?.name || 'Next Tier');
+    }
+
+    const heroAmountNeeded = document.getElementById('tierHeroAmountNeeded');
+    if (heroAmountNeeded) {
+      heroAmountNeeded.textContent = isMaxTier 
+        ? 'Top Rank (Ace)' 
+        : `₹${(p.amountToNextTier || 0).toLocaleString('en-IN')}`;
+    }
+
+    const heroCommission = document.getElementById('tierHeroCommission');
+    if (heroCommission) heroCommission.textContent = `${effectiveRate}%`;
+
+    const heroCommissionMode = document.getElementById('tierHeroCommissionMode');
+    if (heroCommissionMode) {
+      heroCommissionMode.textContent = isManual ? 'MANUAL OVERRIDE' : 'AUTO TIER RATE';
+      heroCommissionMode.className = `badge ${isManual ? 'badge-mode-manual' : 'badge-mode-auto'}`;
+      const reason = p.manualCommissionReason || p.commission?.manualReason;
+      if (reason) {
+        heroCommissionMode.title = `Override Reason: ${reason}`;
+      }
+    }
+
+    // 4. Progress bar
+    const progressBar = document.getElementById('tierProgressBar');
+    const progressText = document.getElementById('tierProgressPercentageText');
+    const startLabel = document.getElementById('tierProgressStartLabel');
+    const endLabel = document.getElementById('tierProgressEndLabel');
+
+    if (progressBar) progressBar.style.width = `${p.progressPercentage || 0}%`;
+    if (progressText) progressText.textContent = `${p.progressPercentage || 0}%`;
+    if (startLabel) startLabel.textContent = `Min: ₹${(currentTier.minTopUp || 0).toLocaleString('en-IN')}`;
+    if (endLabel) {
+      endLabel.textContent = isMaxTier 
+        ? 'Ace Level Max' 
+        : `Target: ₹${(nextTier?.minTopUp || currentTier.maxTopUp || 0).toLocaleString('en-IN')}`;
+    }
+
+  } catch (err) {
+    console.error('fetchVendorTierProgress error:', err);
+  }
+}
+
+async function fetchVendorTierMovements() {
+  if (!currentToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/tier-movements`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const data = await res.json();
+    const container = document.getElementById('tierMovementsList');
+    if (!container) return;
+
+    if (data.success && data.data?.movements?.length > 0) {
+      container.innerHTML = data.data.movements.map(m => {
+        const dateStr = new Date(m.changedAt).toLocaleString('en-IN');
+        return `
+          <div class="timeline-item">
+            <div class="timeline-content">
+              <div class="timeline-header">
+                <strong>${m.previousTierName} ➔ ${m.newTierName}</strong>
+                <small class="text-muted">${dateStr}</small>
+              </div>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">
+                Volume reached: <strong>₹${(m.totalMonthlyTopUp || 0).toLocaleString('en-IN')}</strong> (+₹${(m.topUpAmountAtChange || 0).toLocaleString('en-IN')}) | Commission: ${m.newCommissionRate}%
+              </p>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      container.innerHTML = '<p class="empty-state">No rank movements recorded this month yet.</p>';
+    }
+  } catch (err) {
+    console.error('fetchVendorTierMovements error:', err);
+  }
+}
+
+async function fetchVendorTierHistory() {
+  if (!currentToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/monthly-history`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const data = await res.json();
+    const tbody = document.getElementById('tierHistoryTbody');
+    if (!tbody) return;
+
+    if (data.success && data.data?.history?.length > 0) {
+      tbody.innerHTML = data.data.history.map(h => {
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthLabel = `${monthNames[h.month - 1] || h.month} ${h.year}`;
+        const badgeClass = getTierBadgeClass('', h.currentTierName);
+
+        return `
+          <tr>
+            <td><strong>${monthLabel}</strong></td>
+            <td>₹${(h.totalMonthlyTopUp || 0).toLocaleString('en-IN')}</td>
+            <td><span class="badge ${badgeClass}">${h.currentTierName}</span></td>
+            <td><strong>${h.currentCommissionRate}%</strong> <small class="text-muted">(${h.commissionMode})</small></td>
+            <td><span class="badge ${h.isClosed ? 'badge-approved' : 'badge-pending'}">${h.isClosed ? 'Finalized' : 'In Progress'}</span></td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No past monthly records found.</td></tr>';
+    }
+  } catch (err) {
+    console.error('fetchVendorTierHistory error:', err);
+  }
+}
+
+async function fetchVendorTiersList() {
+  if (!currentToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/tiers`, {
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+    const data = await res.json();
+    const tbody = document.getElementById('tierMatrixTbody');
+    if (!tbody) return;
+
+    if (data.success && data.data?.tiers?.length > 0) {
+      const volume = cachedVendorMonthlyTopUp || 0;
+      const sortedTiers = [...data.data.tiers].sort((a, b) => (a.orderPriority || 0) - (b.orderPriority || 0) || (a.minTopUp || 0) - (b.minTopUp || 0));
+
+      tbody.innerHTML = sortedTiers.map(t => {
+        const isCurrentActive = cachedCurrentTierId 
+          ? (t._id === cachedCurrentTierId || t.name === cachedCurrentTierName || t.displayName === cachedCurrentTierName)
+          : (volume >= t.minTopUp && (!t.maxTopUp || volume <= t.maxTopUp));
+
+        const badgeClass = getTierBadgeClass(t.divisionGroup, t.name);
+        const rangeDisplay = t.maxTopUp 
+          ? `₹${(t.minTopUp || 0).toLocaleString('en-IN')} – ₹${t.maxTopUp.toLocaleString('en-IN')}` 
+          : `₹${(t.minTopUp || 0).toLocaleString('en-IN')}+ (Unlimited)`;
+
+        let neededHtml = '';
+        let statusHtml = '';
+
+        if (isCurrentActive) {
+          neededHtml = `<span style="font-weight: 700; color: #059669;">⭐ Current Active Rank</span>`;
+          statusHtml = `<span class="badge badge-approved" style="font-weight: 700; padding: 0.35rem 0.65rem;">📍 YOU ARE HERE</span>`;
+        } else if (volume >= (t.maxTopUp || t.minTopUp)) {
+          neededHtml = `<span style="color: #059669; font-weight: 600;">✅ Achieved</span>`;
+          statusHtml = `<span class="badge badge-approved">Unlocked</span>`;
+        } else {
+          const diff = Math.max(0, t.minTopUp - volume);
+          neededHtml = `<span style="font-weight: 700; color: #0284c7;">+₹${diff.toLocaleString('en-IN')} more</span>`;
+          statusHtml = `<span class="badge badge-pending">🔒 Needs ₹${diff.toLocaleString('en-IN')}</span>`;
+        }
+
+        return `
+          <tr class="${isCurrentActive ? 'row-active-tier' : ''}">
+            <td>
+              <span class="badge ${badgeClass}">${t.divisionGroup || 'Tier'} ${t.level || ''}</span>
+            </td>
+            <td>
+              <strong>${t.displayName || t.name}</strong>
+            </td>
+            <td>${rangeDisplay}</td>
+            <td style="font-weight: 700; color: #059669;">${t.commissionRate}%</td>
+            <td>${neededHtml}</td>
+            <td>${statusHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No tiers configured.</td></tr>';
+    }
+  } catch (err) {
+    console.error('fetchVendorTiersList error:', err);
+  }
+}
+
+/**
+ * 12. Logout
  */
 function logout() {
   currentToken = null;
@@ -1159,3 +1464,4 @@ function logout() {
   showAuthSection();
   showToast('Logged out', 'success');
 }
+

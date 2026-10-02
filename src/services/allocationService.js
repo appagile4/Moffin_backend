@@ -5,6 +5,7 @@ const VendorWallet = require('../models/vendorWalletModel');
 const ClientTransaction = require('../models/clientTransactionModel');
 const WalletTransaction = require('../models/walletTransactionModel');
 const { getApplicableTier } = require('./tierService');
+const { getVendorEffectiveCommission } = require('./tierCalculationService');
 const { creditWallet, generateTransactionNumber } = require('./walletService');
 const { logAction } = require('./auditService');
 
@@ -109,8 +110,8 @@ const allocateClientTransaction = async ({
     const balanceAfter = updatedWallet.balance;
     const transactionId = generateTxId('CTX');
 
-    // STEP 6: Calculate commission snapshot
-    const tierInfo = await getApplicableTier(numAmount);
+    // STEP 6: Calculate commission snapshot based on vendor's current monthly tier & manual override
+    const tierInfo = await getVendorEffectiveCommission(vendor._id);
     const commissionAmount = Number(((numAmount * tierInfo.commissionPercentage) / 100).toFixed(2));
 
     // STEP 7: Credit commission to vendor wallet
@@ -122,7 +123,7 @@ const allocateClientTransaction = async ({
         transactionType: 'COMMISSION_CREDIT',
         referenceType: 'ClientTransaction',
         referenceId: transactionId,
-        description: `Commission (${tierInfo.commissionPercentage}%) for client transaction ${transactionId}`,
+        description: `Commission (${tierInfo.commissionPercentage}% - ${tierInfo.tierName}${tierInfo.isManual ? ' [Manual]' : ''}) for client transaction ${transactionId}`,
         createdBy: 'system'
       });
     }

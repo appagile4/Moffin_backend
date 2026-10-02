@@ -15,7 +15,19 @@ const connectDB = async () => {
 
     // Sync database indexes
     const PaymentConfirmation = require('../models/paymentConfirmationModel');
-    await PaymentConfirmation.syncIndexes();
+    const VendorTier = require('../models/vendorTierModel');
+    const VendorMonthlyTier = require('../models/vendorMonthlyTierModel');
+    const TierMovementLog = require('../models/tierMovementLogModel');
+    await Promise.all([
+      PaymentConfirmation.syncIndexes(),
+      VendorTier.syncIndexes(),
+      VendorMonthlyTier.syncIndexes(),
+      TierMovementLog.syncIndexes()
+    ]);
+
+    // Start Monthly Tier Reset Scheduler (Asia/Kolkata)
+    const { startMonthlyTierScheduler } = require('../jobs/monthlyTierResetJob');
+    startMonthlyTierScheduler();
   } catch (error) {
     console.error(`❌ MongoDB Connection Error: ${error.message}`);
     console.warn(`⚠️  Ensure MongoDB is running locally (or provide a valid MONGO_URI in .env). Server is still running...`);
