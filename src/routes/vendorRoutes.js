@@ -52,6 +52,13 @@ const {
 } = require('../controllers/tierController');
 
 const {
+  getVendorPaymentRequests,
+  getVendorPaymentById,
+  approvePayment,
+  rejectPayment
+} = require('../controllers/vendorPaymentController');
+
+const {
   authMiddleware,
   vendorAuth,
   validateObjectId
@@ -170,7 +177,12 @@ router.get('/fcfs-status', authMiddleware, vendorAuth, getVendorQueueStatus);
 router.get('/payment-destinations', authMiddleware, vendorAuth, getDestinations);
 router.get('/tiers', authMiddleware, vendorAuth, getTiers);
 router.get('/tier-progress', authMiddleware, vendorAuth, getVendorCurrentProgress);
-router.get('/monthly-history', authMiddleware, vendorAuth, getVendorMonthlyHistory);
-router.get('/tier-movements', authMiddleware, vendorAuth, getVendorTierMovements);
+// =============================================================================
+// 9. INCOMING CLIENT PAYMENT VERIFICATION & APPROVAL (Protected - Vendor only)
+// =============================================================================
+router.get(['/payment-requests', '/incoming-payments'], authMiddleware, vendorAuth, getVendorPaymentRequests);
+router.get(['/payment/:paymentId', '/payment-requests/:paymentId'], authMiddleware, vendorAuth, getVendorPaymentById);
+router.post(['/payment/:paymentId/approve', '/payment-requests/:paymentId/approve'], authMiddleware, vendorAuth, approvePayment);
+router.post(['/payment/:paymentId/reject', '/payment-requests/:paymentId/reject'], authMiddleware, vendorAuth, rejectPayment);
 
 module.exports = router;

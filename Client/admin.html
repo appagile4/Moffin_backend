@@ -836,7 +836,10 @@
                     Ordered by earliest approved top-up. Re-topping up moves a vendor to the end of the queue.
                   </p>
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span class="badge badge-info" id="fcfsTotalCountBadge" style="font-size: 0.85rem; padding: 6px 12px; font-weight: 700;">
+                    Total Vendors: Loading...
+                  </span>
                   <button
                     class="btn btn-sm btn-secondary"
                     onclick="fetchAdminFcfsQueue()"

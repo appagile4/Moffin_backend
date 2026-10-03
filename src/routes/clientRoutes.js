@@ -9,6 +9,13 @@ const {
 } = require('../controllers/clientAuthController');
 
 const {
+  createPaymentRequest,
+  submitPayment,
+  getClientBalance,
+  getClientPaymentRequests
+} = require('../controllers/clientPaymentController');
+
+const {
   allocateTransaction
 } = require('../controllers/fcfsController');
 
@@ -36,7 +43,26 @@ router.put('/profile', authMiddleware, clientRoleAuth, clientAuth, updateClientP
 router.put('/me', authMiddleware, clientRoleAuth, clientAuth, updateClientProfile);
 
 // =============================================================================
-// 3. FCFS TRANSACTION ALLOCATION (Existing Route)
+// 3. CLIENT BALANCE & TRANSACTION HISTORY
+// =============================================================================
+router.get('/balance', authMiddleware, clientRoleAuth, clientAuth, getClientBalance);
+router.get('/transactions', authMiddleware, clientRoleAuth, clientAuth, getClientPaymentRequests);
+
+// =============================================================================
+// 4. CLIENT PAYMENT REQUEST & FCFS VENDOR ALLOCATION (STAGE 1)
+// =============================================================================
+router.post('/payment-request', authMiddleware, clientRoleAuth, clientAuth, createPaymentRequest);
+router.post('/payment-requests', authMiddleware, clientRoleAuth, clientAuth, createPaymentRequest);
+router.get('/payment-requests', authMiddleware, clientRoleAuth, clientAuth, getClientPaymentRequests);
+
+// =============================================================================
+// 5. CLIENT PAYMENT SUBMISSION & UTR CONFIRMATION (STAGE 2)
+// =============================================================================
+router.post('/payment/submit', authMiddleware, clientRoleAuth, clientAuth, submitPayment);
+router.post('/payment-submit', authMiddleware, clientRoleAuth, clientAuth, submitPayment);
+
+// =============================================================================
+// 6. LEGACY / SYSTEM FCFS ALLOCATION
 // =============================================================================
 router.post('/transactions/allocate', allocateTransaction);
 

@@ -1259,6 +1259,11 @@ async function fetchAdminFcfsQueue() {
       fcfsQueueCache = data.data.queue;
       const totalInQueue = data.data.queue.length;
 
+      const countBadge = document.getElementById('fcfsTotalCountBadge');
+      if (countBadge) {
+        countBadge.textContent = `Total Vendors in Queue: ${totalInQueue}`;
+      }
+
       tbody.innerHTML = data.data.queue.map((q, index) => {
         const v = q.vendorId;
         const vendorName = v ? `${v.firstName || ''} ${v.lastName || ''}`.trim() || 'Unnamed Vendor' : 'Unknown Vendor';

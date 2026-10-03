@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const Client = require('../models/clientModel');
+const ClientTransaction = require('../models/clientTransactionModel');
+const ClientWalletTransaction = require('../models/clientWalletTransactionModel');
 const { logAction } = require('../services/auditService');
 
 /**
@@ -216,7 +218,79 @@ const getAdminClientById = async (req, res) => {
       return sendError(res, 404, 'Client not found');
     }
 
-    return sendSuccess(res, 200, 'Client details retrieved successfully', { client });
+    // Aggregate transactions financial metrics for this client
+    const allTx = await ClientTransaction.find({
+      $or: [
+        { clientId: client._id },
+        { clientId: client._id.toString() }
+      ]
+    }).sort({ createdAt: -1 });
+
+    let totalApprovedAmount = 0;
+    let totalApprovedCount = 0;
+    let totalPendingAmount = 0;
+    let totalPendingCount = 0;
+    let totalRejectedAmount = 0;
+    let totalRejectedCount = 0;
+    let totalRequestedAmount = 0;
+
+    const approvedStatuses = ['APPROVED', 'COMPLETED'];
+    const pendingStatuses = ['AWAITING_VENDOR_VERIFICATION', 'PAYMENT_SUBMITTED', 'ASSIGNED', 'ALLOCATED', 'PENDING'];
+    const rejectedStatuses = ['REJECTED', 'FAILED'];
+
+    for (const tx of allTx) {
+      const reqAmt = Number(tx.requestedAmount || tx.allocatedAmount || 0);
+      const appAmt = Number(tx.approvedAmount || tx.submittedAmount || tx.allocatedAmount || reqAmt);
+      const subAmt = Number(tx.submittedAmount || tx.allocatedAmount || reqAmt);
+      totalRequestedAmount += reqAmt;
+
+      if (approvedStatuses.includes(tx.status)) {
+        totalApprovedAmount += appAmt;
+        totalApprovedCount++;
+      } else if (pendingStatuses.includes(tx.status)) {
+        totalPendingAmount += subAmt;
+        totalPendingCount++;
+      } else if (rejectedStatuses.includes(tx.status)) {
+        totalRejectedAmount += reqAmt;
+        totalRejectedCount++;
+      }
+    }
+
+    const currentBalance = Number(client.balance) || 0;
+    const withdrawableBalance = currentBalance; // Currently available balance for withdrawal
+
+    const financialSummary = {
+      currentBalance,
+      withdrawableBalance,
+      totalRequestedAmount,
+      totalTransactionsCount: allTx.length,
+      totalApprovedAmount,
+      totalApprovedCount,
+      totalPendingAmount,
+      totalPendingCount,
+      totalRejectedAmount,
+      totalRejectedCount
+    };
+
+    const recentTransactions = allTx.slice(0, 10).map((t) => ({
+      transactionId: t.transactionId,
+      amount: t.requestedAmount || t.allocatedAmount,
+      approvedAmount: t.approvedAmount,
+      paymentMethod: t.paymentMethod,
+      status: t.status,
+      externalTransactionId: t.externalTransactionId,
+      createdAt: t.createdAt,
+      submittedAt: t.submittedAt,
+      approvedAt: t.approvedAt,
+      rejectedAt: t.rejectedAt,
+      rejectionReason: t.rejectionReason
+    }));
+
+    return sendSuccess(res, 200, 'Client details retrieved successfully', {
+      client,
+      financialSummary,
+      recentTransactions
+    });
   } catch (error) {
     console.error('getAdminClientById Error:', error);
     return sendError(res, 500, error.message || 'Error fetching client details');

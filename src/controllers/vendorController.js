@@ -5,6 +5,7 @@ const Vendor = require('../models/vendorModel');
 const VendorMonthlyTier = require('../models/vendorMonthlyTierModel');
 const { getKolkataDate } = require('../services/tierCalculationService');
 const { uploadToCloudinary } = require('../config/cloudinary');
+const { syncVendorToQueue } = require('../services/fcfsService');
 
 /**
  * Helper: Generate JWT Token
@@ -122,6 +123,13 @@ const registerVendor = async (req, res) => {
       bankAccounts: [],
       wallets: []
     });
+
+    // 6. Sync Vendor to FCFS Priority Queue
+    try {
+      await syncVendorToQueue(newVendor._id);
+    } catch (qErr) {
+      console.warn('[FCFS Queue Sync] Warning syncing vendor on register:', qErr.message);
+    }
 
     // 7. Return safe vendor data (password is omitted)
     const vendorResponse = newVendor.toObject();

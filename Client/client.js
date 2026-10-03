@@ -172,6 +172,11 @@ function showDashboardSection(client) {
   } else {
     lastLoginElem.textContent = 'First session';
   }
+
+  // Load payment requests & initialize UI
+  updateMethodUI();
+  fetchClientBalance();
+  fetchClientPaymentRequests();
 }
 
 // =============================================================================
@@ -351,6 +356,352 @@ async function handleSaveClientProfile(e) {
 }
 
 // =============================================================================
+// CLIENT PAYMENT REQUEST & FCFS VENDOR ALLOCATION
+// =============================================================================
+function updateMethodUI() {
+  const method = document.querySelector('input[name="paymentMethod"]:checked')?.value || 'wallet';
+  const walletLabel = document.getElementById('methodWalletLabel');
+  const bankLabel = document.getElementById('methodBankLabel');
+
+  if (walletLabel && bankLabel) {
+    if (method === 'wallet') {
+      walletLabel.style.borderColor = '#6366f1';
+      walletLabel.style.backgroundColor = 'rgba(99, 102, 241, 0.05)';
+      bankLabel.style.borderColor = 'var(--border)';
+      bankLabel.style.backgroundColor = 'transparent';
+    } else {
+      bankLabel.style.borderColor = '#6366f1';
+      bankLabel.style.backgroundColor = 'rgba(99, 102, 241, 0.05)';
+      walletLabel.style.borderColor = 'var(--border)';
+      walletLabel.style.backgroundColor = 'transparent';
+    }
+  }
+}
+
+function setQuickAmount(amount) {
+  const amountInput = document.getElementById('paymentRequestAmount');
+  if (amountInput) {
+    amountInput.value = amount;
+    amountInput.focus();
+  }
+}
+
+function copyToClipboard(text) {
+  if (!text || text === '--') return;
+  navigator.clipboard.writeText(text).then(
+    () => showToast('Copied to clipboard: ' + text, 'success'),
+    () => showToast('Failed to copy', 'error')
+  );
+}
+
+async function handleCreatePaymentRequest(e) {
+  e.preventDefault();
+
+  const method = document.querySelector('input[name="paymentMethod"]:checked')?.value || 'wallet';
+  const amountInput = document.getElementById('paymentRequestAmount');
+  const referenceInput = document.getElementById('paymentRequestReference');
+  const submitBtn = document.getElementById('btnSubmitPaymentRequest');
+
+  const amount = Number(amountInput.value);
+  const clientReference = referenceInput.value.trim();
+
+  if (!amount || isNaN(amount) || amount <= 0) {
+    showToast('Please enter a valid amount greater than 0', 'error');
+    return;
+  }
+
+  // Generate unique idempotency key for this request attempt
+  const idempotencyKey = 'REQ-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7);
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '⏳ Matching FCFS Vendor...';
+
+  try {
+    const res = await fetch(`${API_BASE}/client/payment-request`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'X-Idempotency-Key': idempotencyKey
+      },
+      body: JSON.stringify({
+        paymentMethod: method,
+        amount,
+        clientReference,
+        idempotencyKey
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.data) {
+      showToast('Payment request allocated successfully!', 'success');
+      renderAssignedDestination(data.data);
+      amountInput.value = '';
+      referenceInput.value = '';
+      fetchClientPaymentRequests();
+    } else {
+      showToast(data.message || 'No eligible vendor currently available for this request', 'warning');
+      const card = document.getElementById('assignedDestinationCard');
+      if (card) card.classList.add('hidden');
+    }
+  } catch (err) {
+    console.error('Payment Request Error:', err);
+    showToast('Network or server error submitting payment request', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '🚀 Submit Payment Request & Allocate Vendor';
+  }
+}
+
+function renderAssignedDestination(data) {
+  const card = document.getElementById('assignedDestinationCard');
+  if (!card) return;
+
+  const txId = data.transactionId || data._id || '--';
+  const amount = Number(data.amount || data.allocatedAmount || data.requestedAmount || 0);
+  const method = (data.paymentMethod || 'wallet').toLowerCase();
+
+  document.getElementById('assignedTxId').textContent = txId;
+  document.getElementById('assignedAmount').textContent = `₹${amount.toLocaleString('en-IN')}`;
+  document.getElementById('assignedMethod').textContent = method.toUpperCase();
+  document.getElementById('assignedStatusBadge').textContent = data.status || 'ASSIGNED';
+
+  // Populate Step 2 hidden inputs
+  const submitReqIdInput = document.getElementById('submitPaymentRequestId');
+  const submitAmountInput = document.getElementById('submitPaymentAmount');
+  const submitMethodInput = document.getElementById('submitAssignedMethod');
+  const submitWalletIdInput = document.getElementById('submitAssignedWalletId');
+  const submitBankIdInput = document.getElementById('submitAssignedBankId');
+  const submitSummaryBox = document.getElementById('submitDetailsSummaryBox');
+
+  if (submitReqIdInput) submitReqIdInput.value = txId;
+  if (submitAmountInput) submitAmountInput.value = amount;
+  if (submitMethodInput) submitMethodInput.value = method;
+
+  const container = document.getElementById('assignedDetailsContainer');
+  const details = data.paymentDetails;
+
+  if (!details) {
+    container.innerHTML = '<p class="text-muted">No specific account details attached.</p>';
+    if (submitSummaryBox) submitSummaryBox.innerHTML = '';
+  } else if (details.type === 'wallet') {
+    if (submitWalletIdInput) submitWalletIdInput.value = details.walletId || '';
+    if (submitBankIdInput) submitBankIdInput.value = '';
+    if (submitSummaryBox) {
+      submitSummaryBox.innerHTML = `<strong>Paying to Wallet:</strong> <code>${details.walletId || ''}</code> (${details.walletName || 'UPI'})`;
+    }
+
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="flex: 1; min-width: 200px;">
+          <div style="font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Assigned Wallet / UPI</div>
+          <div style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 4px 0;">💳 ${details.walletName || 'UPI'}</div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+            <span style="font-size: 1.05rem; font-family: monospace; font-weight: 700; color: #4f46e5; background: #eef2ff; padding: 4px 8px; border-radius: 6px;">
+              ${details.walletId}
+            </span>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="copyToClipboard('${details.walletId}')">📋 Copy UPI</button>
+          </div>
+        </div>
+        ${
+          details.qrCode
+            ? `
+          <div style="text-align: center;">
+            <img src="${details.qrCode}" alt="Vendor QR" style="width: 130px; height: 130px; object-fit: contain; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" />
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">Scan to Pay</div>
+          </div>
+        `
+            : ''
+        }
+      </div>
+    `;
+  } else if (details.type === 'bank') {
+    if (submitWalletIdInput) submitWalletIdInput.value = '';
+    if (submitBankIdInput) submitBankIdInput.value = details.accountNumber || details.bankId || '';
+    if (submitSummaryBox) {
+      submitSummaryBox.innerHTML = `<strong>Paying to Bank Account:</strong> <code>${details.accountNumber || ''}</code> (${details.bankName || 'Bank'})`;
+    }
+
+    container.innerHTML = `
+      <div>
+        <div style="font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Assigned Bank Account Details</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+          <div style="padding: 8px 12px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #6366f1;">
+            <div style="font-size: 0.75rem; color: #64748b;">Bank Name</div>
+            <div style="font-weight: 700; color: #1e293b;">🏦 ${details.bankName || 'Bank'}</div>
+          </div>
+
+          <div style="padding: 8px 12px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #6366f1;">
+            <div style="font-size: 0.75rem; color: #64748b;">Account Holder Name</div>
+            <div style="font-weight: 700; color: #1e293b;">👤 ${details.accountHolderName || '--'}</div>
+          </div>
+
+          <div style="padding: 8px 12px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #10b981;">
+            <div style="font-size: 0.75rem; color: #64748b;">Account Number</div>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-weight: 800; font-family: monospace; color: #047857;">${details.accountNumber || '--'}</span>
+              <button type="button" class="btn btn-sm btn-secondary" style="padding: 1px 5px; font-size: 0.7rem;" onclick="copyToClipboard('${details.accountNumber}')">📋</button>
+            </div>
+          </div>
+
+          <div style="padding: 8px 12px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #10b981;">
+            <div style="font-size: 0.75rem; color: #64748b;">IFSC Code</div>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-weight: 800; font-family: monospace; color: #047857;">${details.ifscCode || '--'}</span>
+              <button type="button" class="btn btn-sm btn-secondary" style="padding: 1px 5px; font-size: 0.7rem;" onclick="copyToClipboard('${details.ifscCode}')">📋</button>
+            </div>
+          </div>
+        </div>
+        ${details.branchName ? `<div style="font-size: 0.8rem; color: #64748b; margin-top: 8px;">Branch: <strong>${details.branchName}</strong></div>` : ''}
+      </div>
+    `;
+  }
+
+  card.classList.remove('hidden');
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// =============================================================================
+// STEP 2: CLIENT PAYMENT SUBMISSION (UTR / EXTERNAL TX ID)
+// =============================================================================
+async function handleClientPaymentSubmission(e) {
+  e.preventDefault();
+
+  const paymentRequestId = document.getElementById('submitPaymentRequestId')?.value;
+  const amount = Number(document.getElementById('submitPaymentAmount')?.value);
+  const paymentMethod = document.getElementById('submitAssignedMethod')?.value;
+  const transactionId = document.getElementById('submitExternalTxId')?.value.trim();
+  const walletId = document.getElementById('submitAssignedWalletId')?.value;
+  const bankId = document.getElementById('submitAssignedBankId')?.value;
+  const submitBtn = document.getElementById('btnSubmitPaymentProof');
+
+  if (!paymentRequestId) {
+    showToast('Missing payment request reference', 'error');
+    return;
+  }
+
+  if (!transactionId) {
+    showToast('Please enter the external UTR / Transaction ID', 'error');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '⏳ Submitting payment details...';
+
+  try {
+    const res = await fetch(`${API_BASE}/client/payment/submit`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        paymentRequestId,
+        amount,
+        paymentMethod,
+        transactionId,
+        walletId: paymentMethod === 'wallet' ? walletId : null,
+        bankId: paymentMethod === 'bank' ? bankId : null
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      showToast('Payment details submitted successfully! Awaiting vendor approval.', 'success');
+      document.getElementById('assignedStatusBadge').textContent = 'AWAITING_VERIFICATION';
+      document.getElementById('assignedStatusBadge').style.background = '#eab308';
+      document.getElementById('submitExternalTxId').value = '';
+      fetchClientPaymentRequests();
+      fetchClientBalance();
+    } else {
+      showToast(data.message || 'Payment submission failed', 'error');
+    }
+  } catch (err) {
+    console.error('Payment Submission Error:', err);
+    showToast('Server or network error submitting payment details', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '✅ Submit Payment for Vendor Verification';
+  }
+}
+
+// =============================================================================
+// CLIENT BALANCE & TRANSACTIONS
+// =============================================================================
+async function fetchClientBalance() {
+  try {
+    const res = await fetch(`${API_BASE}/client/balance`, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.data) {
+      const balanceElem = document.getElementById('clientPlatformBalance');
+      const countElem = document.getElementById('clientTotalTxCount');
+
+      if (balanceElem) {
+        balanceElem.textContent = `₹ ${(data.data.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
+
+      if (countElem && data.data.ledger?.pagination) {
+        countElem.textContent = `${data.data.ledger.pagination.total || 0} Records`;
+      }
+    }
+  } catch (err) {
+    console.error('Fetch Balance Error:', err);
+  }
+}
+
+async function fetchClientPaymentRequests() {
+  const tbody = document.getElementById('clientRequestsTbody');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/client/payment-requests`, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.data && data.data.transactions?.length > 0) {
+      tbody.innerHTML = data.data.transactions
+        .map((tx) => {
+          const method = (tx.paymentMethod || 'wallet').toUpperCase();
+          const amount = (tx.requestedAmount || tx.allocatedAmount || 0).toLocaleString('en-IN');
+          const dt = tx.createdAt ? new Date(tx.createdAt).toLocaleString() : '--';
+          let detailsText = '--';
+
+          if (tx.paymentDetails?.type === 'wallet') {
+            detailsText = `💳 ${tx.paymentDetails.walletName || 'UPI'}: ${tx.paymentDetails.walletId || ''}`;
+          } else if (tx.paymentDetails?.type === 'bank') {
+            detailsText = `🏦 ${tx.paymentDetails.bankName || 'Bank'}: A/C ${tx.paymentDetails.accountNumber || ''} (${tx.paymentDetails.ifscCode || ''})`;
+          }
+
+          let badgeClass = 'badge-info';
+          if (tx.status === 'APPROVED' || tx.status === 'COMPLETED') badgeClass = 'badge-success';
+          else if (tx.status === 'REJECTED') badgeClass = 'badge-danger';
+          else if (tx.status === 'AWAITING_VENDOR_VERIFICATION') badgeClass = 'badge-warning';
+
+          return `
+            <tr>
+              <td><strong style="font-family: monospace; font-size: 0.85rem;">${tx.transactionId}</strong></td>
+              <td style="font-weight: 800; color: #059669;">₹${amount}</td>
+              <td><span class="badge ${tx.paymentMethod === 'bank' ? 'badge-primary' : 'badge-info'}">${method}</span></td>
+              <td style="font-size: 0.85rem; color: #334155; max-width: 250px;">${detailsText}</td>
+              <td><span class="badge ${badgeClass}">${tx.status || 'ASSIGNED'}</span></td>
+              <td style="font-size: 0.8rem; color: #64748b;">${dt}</td>
+            </tr>
+          `;
+        })
+        .join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No payment requests created yet.</td></tr>';
+    }
+  } catch (err) {
+    console.error('Fetch Requests Error:', err);
+  }
+}
+
+// =============================================================================
 // CLIENT LOGOUT
 // =============================================================================
 function clientLogout() {
@@ -358,3 +709,5 @@ function clientLogout() {
   showToast('Logged out successfully', 'info');
   showAuthSection();
 }
+
+

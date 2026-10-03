@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const FCFSQueue = require('../models/fcfsQueueModel');
 const Vendor = require('../models/vendorModel');
 const VendorWallet = require('../models/vendorWalletModel');
@@ -69,15 +70,49 @@ const moveVendorToEndOfQueue = async (vendorId, session = null) => {
 
 /**
  * Get FCFS Queue list with Vendor profile, Bank Details, Wallets, and live Wallet balances
+ * Automatically synchronizes all registered vendors into the queue so no vendor is missed.
  */
-const getQueue = async ({ isActive, page = 1, limit = 50 } = {}) => {
+const getQueue = async ({ isActive, page = 1, limit = 500 } = {}) => {
+  // 1. Synchronize all vendors in database to FCFS queue
+  const allVendors = await Vendor.find({});
+  const existingQueueEntries = await FCFSQueue.find({});
+  const queuedVendorIdMap = new Map(existingQueueEntries.map(q => [q.vendorId ? q.vendorId.toString() : '', q]));
+
+  // Clean up any orphaned queue entries whose vendor no longer exists
+  const validVendorIdSet = new Set(allVendors.map(v => v._id.toString()));
+  const orphanedQueueIds = existingQueueEntries
+    .filter(q => !q.vendorId || !validVendorIdSet.has(q.vendorId.toString()))
+    .map(q => q._id);
+  if (orphanedQueueIds.length > 0) {
+    await FCFSQueue.deleteMany({ _id: { $in: orphanedQueueIds } });
+  }
+
+  // Identify unqueued vendors and append them to the queue
+  const unqueuedVendors = allVendors.filter(v => !queuedVendorIdMap.has(v._id.toString()));
+  if (unqueuedVendors.length > 0) {
+    let maxPos = existingQueueEntries.reduce((max, q) => Math.max(max, q.priorityPosition || 0), 0);
+    const newDocs = [];
+    for (const v of unqueuedVendors) {
+      maxPos++;
+      newDocs.push({
+        vendorId: v._id,
+        priorityPosition: maxPos,
+        isActive: v.isActive !== false,
+        consecutiveSkips: 0
+      });
+    }
+    if (newDocs.length > 0) {
+      await FCFSQueue.insertMany(newDocs);
+    }
+  }
+
   const query = {};
   if (isActive !== undefined) {
     query.isActive = isActive === 'true' || isActive === true;
   }
 
   const numPage = Math.max(1, parseInt(page, 10) || 1);
-  const numLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 50));
+  const numLimit = Math.max(1, Math.min(1000, parseInt(limit, 10) || 500));
   const skip = (numPage - 1) * numLimit;
 
   const [queueItems, total] = await Promise.all([
@@ -166,15 +201,26 @@ const getQueue = async ({ isActive, page = 1, limit = 50 } = {}) => {
 
 /**
  * Reorder Vendor priority in FCFS Queue (SuperAdmin only)
- * Supports either:
- * - Single vendor reorder: { vendorId, newPriorityPosition }
- * - Full batch array reorder: { vendorOrder: [vendorId1, vendorId2, ...] }
- * 
- * @param {Object} params
- * @param {ObjectId|string} adminId
+ * Supports:
+ * - Single vendor: reorderQueue(vendorId, newPriorityPosition, adminId) OR reorderQueue({ vendorId, newPriorityPosition }, adminId)
+ * - Batch array: reorderQueue({ vendorOrder: [id1, id2, ...] }, adminId)
  */
-const reorderQueue = async (params, adminId) => {
-  const { vendorId, newPriorityPosition, vendorOrder } = params;
+const reorderQueue = async (paramsOrVendorId, newPriorityPositionOrAdminId, maybeAdminId) => {
+  let vendorId = null;
+  let newPriorityPosition = null;
+  let vendorOrder = null;
+  let adminId = null;
+
+  if (paramsOrVendorId && typeof paramsOrVendorId === 'object' && !mongoose.Types.ObjectId.isValid(paramsOrVendorId)) {
+    vendorId = paramsOrVendorId.vendorId;
+    newPriorityPosition = paramsOrVendorId.newPriorityPosition;
+    vendorOrder = paramsOrVendorId.vendorOrder;
+    adminId = newPriorityPositionOrAdminId;
+  } else {
+    vendorId = paramsOrVendorId;
+    newPriorityPosition = newPriorityPositionOrAdminId;
+    adminId = maybeAdminId;
+  }
 
   // Handle batch vendor order array
   if (Array.isArray(vendorOrder) && vendorOrder.length > 0) {

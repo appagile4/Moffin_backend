@@ -148,6 +148,7 @@
         <button class="tab-btn" onclick="switchTab('topupsTab')">⚡ Top-Up Requests</button>
         <button class="tab-btn" onclick="switchTab('banksTab')">🏦 Bank Accounts</button>
         <button class="tab-btn" onclick="switchTab('walletsTab')">👛 Wallets & UPI</button>
+        <button class="tab-btn" onclick="switchTab('incomingPaymentsTab')">📥 Incoming Payments</button>
         <button class="tab-btn" onclick="switchTab('profileTab')">👤 Personal Profile</button>
       </div>
 
@@ -510,6 +511,50 @@
         </div>
       </div>
 
+      <!-- TAB: INCOMING CLIENT PAYMENTS -->
+      <div id="incomingPaymentsTab" class="tab-content hidden">
+        <div class="card mb-3">
+          <div class="card-header flex-between">
+            <div>
+              <h3>📥 Incoming Client Payment Requests</h3>
+              <p class="subtitle">Review payments submitted by clients to your accounts. Verify funds in your bank/wallet before approving.</p>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="incomingPaymentFilter" class="form-select" onchange="fetchVendorPaymentRequests(this.value)" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.85rem;">
+                <option value="all">All Statuses</option>
+                <option value="AWAITING_VENDOR_VERIFICATION" selected>Awaiting Verification</option>
+                <option value="ASSIGNED">Assigned (Pending Client UTR)</option>
+                <option value="APPROVED">Approved & Settled</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+              <button class="btn btn-sm btn-secondary" onclick="fetchVendorPaymentRequests()">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Txn ID</th>
+                  <th>Client</th>
+                  <th>Method & Account</th>
+                  <th>Amount</th>
+                  <th>Submitted UTR / TxID</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="vendorIncomingPaymentsTbody">
+                <tr>
+                  <td colspan="8" class="empty-state">Loading incoming payments...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- TAB: TIERS & RANK -->
       <div id="tiersTab" class="tab-content hidden">
         
@@ -765,6 +810,30 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closeEditWalletModal()">Cancel</button>
           <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Vendor Payment Rejection Modal -->
+  <div id="rejectPaymentModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 480px;">
+      <div class="card-header flex-between">
+        <h3>❌ Reject Client Payment</h3>
+        <button type="button" class="btn-close" onclick="closeVendorRejectModal()">✕</button>
+      </div>
+      <form id="vendorRejectPaymentForm" onsubmit="handleConfirmVendorReject(event)">
+        <input type="hidden" id="rejectPaymentId">
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
+          Rejecting will return reserved funds back to your wallet and mark this payment as REJECTED.
+        </p>
+        <div class="form-group">
+          <label>Reason for Rejection *</label>
+          <textarea id="vendorRejectReason" required rows="3" placeholder="e.g. Funds not credited / Invalid UTR / Wrong amount transferred" style="width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-family: inherit; font-size: 0.9rem; box-sizing: border-box;"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeVendorRejectModal()">Cancel</button>
+          <button type="submit" class="btn btn-danger" id="btnConfirmReject">Confirm Rejection</button>
         </div>
       </form>
     </div>

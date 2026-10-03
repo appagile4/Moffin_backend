@@ -99,6 +99,7 @@ function switchTab(tabId, btnEl = null) {
   if (tabId === 'topupsTab') fetchVendorTopUps();
   if (tabId === 'banksTab') fetchBankAccounts();
   if (tabId === 'walletsTab') fetchWallets();
+  if (tabId === 'incomingPaymentsTab') fetchVendorPaymentRequests();
 }
 
 /**
@@ -1464,4 +1465,188 @@ function logout() {
   showAuthSection();
   showToast('Logged out', 'success');
 }
+
+/**
+ * 13. Vendor Incoming Payment Requests (Stage 2 Verification & Approval)
+ */
+async function fetchVendorPaymentRequests(statusOverride = null) {
+  const tbody = document.getElementById('vendorIncomingPaymentsTbody');
+  if (!tbody) return;
+
+  const filterSelect = document.getElementById('incomingPaymentFilter');
+  const status = statusOverride || (filterSelect ? filterSelect.value : 'all');
+
+  try {
+    let url = `${API_BASE}/vendors/payment-requests`;
+    if (status && status !== 'all') {
+      url += `?status=${encodeURIComponent(status)}`;
+    }
+
+    const res = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentToken}`
+      }
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.data && data.data.transactions?.length > 0) {
+      tbody.innerHTML = data.data.transactions
+        .map((tx) => {
+          const clientName = tx.clientId ? `${tx.clientId.firstName || ''} ${tx.clientId.lastName || ''}`.trim() : 'Client';
+          const clientContact = tx.clientId?.mobile || tx.clientId?.email || '';
+          const method = (tx.paymentMethod || 'wallet').toUpperCase();
+          const amount = Number(tx.submittedAmount || tx.allocatedAmount || tx.requestedAmount || 0);
+          const utr = tx.externalTransactionId || '<span style="color:#94a3b8;">Pending Client Proof</span>';
+          const dt = tx.submittedAt ? new Date(tx.submittedAt).toLocaleString('en-IN') : (tx.createdAt ? new Date(tx.createdAt).toLocaleString('en-IN') : '--');
+
+          let accountDesc = '--';
+          if (tx.paymentDetails?.type === 'wallet') {
+            accountDesc = `👛 ${tx.paymentDetails.walletName || 'UPI'}: <code>${tx.paymentDetails.walletId || ''}</code>`;
+          } else if (tx.paymentDetails?.type === 'bank') {
+            accountDesc = `🏦 ${tx.paymentDetails.bankName || 'Bank'}: A/C <code>${tx.paymentDetails.accountNumber || ''}</code>`;
+          }
+
+          let badgeClass = 'badge-info';
+          if (tx.status === 'APPROVED' || tx.status === 'COMPLETED') badgeClass = 'badge-approved';
+          else if (tx.status === 'REJECTED') badgeClass = 'badge-rejected';
+          else if (tx.status === 'AWAITING_VENDOR_VERIFICATION') badgeClass = 'badge-pending';
+
+          let actionsHtml = '';
+          if (['AWAITING_VENDOR_VERIFICATION', 'ASSIGNED', 'PAYMENT_SUBMITTED', 'ALLOCATED'].includes(tx.status)) {
+            actionsHtml = `
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-sm btn-success" style="padding: 3px 8px; font-size: 0.8rem; font-weight: 700;" onclick="handleVendorApprovePayment('${tx.transactionId}')">
+                  ✓ Approve
+                </button>
+                <button type="button" class="btn btn-sm btn-danger" style="padding: 3px 8px; font-size: 0.8rem;" onclick="openVendorRejectModal('${tx.transactionId}')">
+                  ✕ Reject
+                </button>
+              </div>
+            `;
+          } else if (tx.status === 'APPROVED' || tx.status === 'COMPLETED') {
+            actionsHtml = `<span style="color: #059669; font-weight: 700; font-size: 0.85rem;">✅ Settled (+₹${tx.commissionAmount || 0} comm)</span>`;
+          } else if (tx.status === 'REJECTED') {
+            actionsHtml = `<span style="color: #dc2626; font-size: 0.8rem;">❌ Rejected: ${tx.rejectionReason || 'Declined'}</span>`;
+          }
+
+          return `
+            <tr>
+              <td><strong style="font-family: monospace; font-size: 0.85rem;">${tx.transactionId}</strong></td>
+              <td>
+                <div style="font-weight: 600; color: #1e293b;">${clientName}</div>
+                <div style="font-size: 0.75rem; color: #64748b;">${clientContact}</div>
+              </td>
+              <td style="font-size: 0.85rem;">${accountDesc}</td>
+              <td style="font-weight: 800; color: #059669; font-size: 1rem;">₹${amount.toLocaleString('en-IN')}</td>
+              <td><span style="font-family: monospace; font-weight: 700; color: #4f46e5; background: #eef2ff; padding: 2px 6px; border-radius: 4px;">${utr}</span></td>
+              <td><span class="badge ${badgeClass}">${tx.status}</span></td>
+              <td style="font-size: 0.8rem; color: #64748b;">${dt}</td>
+              <td>${actionsHtml}</td>
+            </tr>
+          `;
+        })
+        .join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No payment requests matching current filter.</td></tr>';
+    }
+  } catch (err) {
+    console.error('fetchVendorPaymentRequests error:', err);
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Failed to load payment requests.</td></tr>';
+  }
+}
+
+/**
+ * Approve Incoming Client Payment
+ */
+async function handleVendorApprovePayment(paymentId) {
+  if (!confirm(`Are you sure you have verified receiving this payment and want to APPROVE Transaction ${paymentId}?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/payment/${paymentId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentToken}`
+      }
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      showToast(`Payment ${paymentId} approved successfully! Commission credited: ₹${data.data?.commissionAmount || 0}`, 'success');
+      fetchVendorPaymentRequests();
+      fetchVendorWalletAndLedger();
+      if (typeof fetchVendorOverviewStats === 'function') fetchVendorOverviewStats();
+    } else {
+      showToast(data.message || 'Failed to approve payment', 'error');
+    }
+  } catch (err) {
+    console.error('handleVendorApprovePayment error:', err);
+    showToast('Network error while approving payment', 'error');
+  }
+}
+
+/**
+ * Reject Incoming Client Payment Modal & Handlers
+ */
+function openVendorRejectModal(paymentId) {
+  const modal = document.getElementById('rejectPaymentModal');
+  const idInput = document.getElementById('rejectPaymentId');
+  const reasonInput = document.getElementById('vendorRejectReason');
+
+  if (idInput) idInput.value = paymentId;
+  if (reasonInput) reasonInput.value = '';
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeVendorRejectModal() {
+  const modal = document.getElementById('rejectPaymentModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleConfirmVendorReject(event) {
+  event.preventDefault();
+
+  const paymentId = document.getElementById('rejectPaymentId')?.value;
+  const reason = document.getElementById('vendorRejectReason')?.value.trim();
+  const btn = document.getElementById('btnConfirmReject');
+
+  if (!paymentId) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Rejecting...';
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/payment/${paymentId}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentToken}`
+      },
+      body: JSON.stringify({ rejectionReason: reason })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      showToast(`Payment ${paymentId} rejected. Reserved funds restored to your wallet.`, 'success');
+      closeVendorRejectModal();
+      fetchVendorPaymentRequests();
+      fetchVendorWalletAndLedger();
+    } else {
+      showToast(data.message || 'Failed to reject payment', 'error');
+    }
+  } catch (err) {
+    console.error('handleConfirmVendorReject error:', err);
+    showToast('Network error while rejecting payment', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm Rejection';
+  }
+}
+
 

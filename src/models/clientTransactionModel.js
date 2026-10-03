@@ -9,14 +9,15 @@ const clientTransactionSchema = new mongoose.Schema(
       index: true
     },
     clientId: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
       required: [true, 'Client ID is required'],
       index: true
     },
     vendorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Vendor',
-      required: [true, 'Allocated Vendor ID is required'],
+      default: null,
       index: true
     },
     requestedAmount: {
@@ -26,41 +27,139 @@ const clientTransactionSchema = new mongoose.Schema(
     },
     allocatedAmount: {
       type: Number,
-      required: [true, 'Allocated amount is required']
+      default: 0
     },
-    vendorBalanceBefore: {
-      type: Number,
-      required: [true, 'Vendor balance before allocation is required']
-    },
-    vendorBalanceAfter: {
-      type: Number,
-      required: [true, 'Vendor balance after allocation is required']
-    },
-    tierAtTransaction: {
+    paymentMethod: {
       type: String,
-      required: [true, 'Tier snapshot is required']
+      enum: ['bank', 'wallet', 'both'],
+      default: 'wallet',
+      index: true
     },
-    commissionPercentage: {
-      type: Number,
-      required: [true, 'Commission percentage snapshot is required']
-    },
-    commissionAmount: {
-      type: Number,
-      required: [true, 'Commission amount is required']
-    },
-    priorityPosition: {
-      type: Number,
-      required: [true, 'Priority position snapshot is required']
+    status: {
+      type: String,
+      enum: [
+        'PENDING',
+        'ASSIGNED',
+        'ALLOCATED',
+        'PAYMENT_PENDING',
+        'PAYMENT_SUBMITTED',
+        'AWAITING_VENDOR_VERIFICATION',
+        'VERIFICATION',
+        'APPROVED',
+        'REJECTED',
+        'COMPLETED',
+        'FAILED',
+        'REFUNDED'
+      ],
+      default: 'ASSIGNED',
+      index: true
     },
     allocationStatus: {
       type: String,
-      enum: ['ALLOCATED', 'COMPLETED', 'FAILED', 'REFUNDED'],
-      default: 'ALLOCATED',
+      enum: ['PENDING', 'ASSIGNED', 'ALLOCATED', 'PAYMENT_SUBMITTED', 'AWAITING_VENDOR_VERIFICATION', 'APPROVED', 'REJECTED', 'COMPLETED', 'FAILED', 'REFUNDED'],
+      default: 'ASSIGNED',
       index: true
+    },
+    paymentDetails: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+    // External payment submission info
+    externalTransactionId: {
+      type: String,
+      trim: true,
+      default: null,
+      index: true
+    },
+    submittedAmount: {
+      type: Number,
+      default: 0
+    },
+    submittedWalletId: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    submittedBankId: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    submittedAt: {
+      type: Date,
+      default: null
+    },
+    // Vendor Manual Approval / Rejection details
+    approvedAmount: {
+      type: Number,
+      default: 0
+    },
+    approvedAt: {
+      type: Date,
+      default: null
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vendor',
+      default: null
+    },
+    rejectedAt: {
+      type: Date,
+      default: null
+    },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vendor',
+      default: null
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    // Financial settlement snapshot
+    financialSettlement: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+    vendorBalanceBefore: {
+      type: Number,
+      default: 0
+    },
+    vendorBalanceAfter: {
+      type: Number,
+      default: 0
+    },
+    tierAtTransaction: {
+      type: String,
+      default: null
+    },
+    commissionPercentage: {
+      type: Number,
+      default: 0
+    },
+    commissionAmount: {
+      type: Number,
+      default: 0
+    },
+    priorityPosition: {
+      type: Number,
+      default: 0
     },
     clientReference: {
       type: String,
-      trim: true
+      trim: true,
+      default: null
+    },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      index: true,
+      default: null
+    },
+    ipAddress: {
+      type: String,
+      default: null
     },
     allocationTimestamp: {
       type: Date,
@@ -75,7 +174,9 @@ const clientTransactionSchema = new mongoose.Schema(
 
 clientTransactionSchema.index({ vendorId: 1, createdAt: -1 });
 clientTransactionSchema.index({ clientId: 1, createdAt: -1 });
+clientTransactionSchema.index({ clientId: 1, idempotencyKey: 1 });
 
 const ClientTransaction = mongoose.model('ClientTransaction', clientTransactionSchema);
 
 module.exports = ClientTransaction;
+

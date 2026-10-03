@@ -34,6 +34,11 @@ const vendorWalletSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Total commission earned cannot be negative']
     },
+    commissionBalance: {
+      type: Number,
+      default: 0,
+      min: [0, 'Commission balance cannot be negative']
+    },
     totalClientTransacted: {
       type: Number,
       default: 0,

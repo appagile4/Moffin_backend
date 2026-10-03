@@ -23,6 +23,7 @@ const VendorWallet = require('../src/models/vendorWalletModel');
 const WalletTransaction = require('../src/models/walletTransactionModel');
 const VendorTier = require('../src/models/vendorTierModel');
 const FCFSQueue = require('../src/models/fcfsQueueModel');
+const Client = require('../src/models/clientModel');
 const ClientTransaction = require('../src/models/clientTransactionModel');
 const AuditLog = require('../src/models/auditLogModel');
 
@@ -332,10 +333,10 @@ async function runTests() {
     { vendorId: vendorC._id, priorityPosition: 3, isActive: true }
   ]);
 
-  // Give Vendor B ₹1,00,000 balance
+  // Give Vendor B ₹90,000 balance
   await walletService.creditWallet({
     vendorId: vendorB._id,
-    amount: 100000,
+    amount: 90000,
     transactionType: 'CREDIT_TOPUP',
     referenceType: 'ManualAdjustment',
     referenceId: 'TEST-SEED',
@@ -352,9 +353,34 @@ async function runTests() {
     description: 'Seed for test'
   });
 
+  // Create test clients
+  const client1 = await Client.create({
+    firstName: 'Test',
+    lastName: 'ClientOne',
+    email: `client_one_${timestamp}@test.com`,
+    password: passwordHash,
+    mobile: `99110011${timestamp}`.substring(0, 15),
+    role: 'client',
+    status: 'active',
+    isActive: true,
+    isVerified: true
+  });
+
+  const client2 = await Client.create({
+    firstName: 'Test',
+    lastName: 'ClientTwo',
+    email: `client_two_${timestamp}@test.com`,
+    password: passwordHash,
+    mobile: `99110022${timestamp}`.substring(0, 15),
+    role: 'client',
+    status: 'active',
+    isActive: true,
+    isVerified: true
+  });
+
   // TEST 12: FCFS selects first eligible vendor (Vendor A: Priority 1, Balance: 50,000 >= 10,000)
   const alloc1 = await allocationService.allocateClientTransaction({
-    clientId: 'CLIENT_001',
+    clientId: client1._id,
     requestedAmount: 10000
   });
   assert(
@@ -368,7 +394,7 @@ async function runTests() {
   // Vendor A (40,000 < 60,000) -> SKIPPED
   // Vendor B (100,000 >= 60,000) -> ALLOCATED
   const alloc2 = await allocationService.allocateClientTransaction({
-    clientId: 'CLIENT_002',
+    clientId: client2._id,
     requestedAmount: 60000
   });
   assert(
@@ -462,6 +488,18 @@ async function runTests() {
   // Run Client Auth & Admin Client Management Test Suite
   const { runClientTests } = require('./clientAuthAndAdminManagementTests');
   await runClientTests();
+
+  // Run Stage 1 Client Payment Request & FCFS Allocation Test Suite
+  const { runClientPaymentTests } = require('./clientPaymentRequestAndFcfsAllocationTests');
+  if (typeof runClientPaymentTests === 'function') {
+    await runClientPaymentTests();
+  }
+
+  // Run Stage 2 Client Payment Submission & Vendor Approval Test Suite
+  const { runStage2PaymentWorkflowTests } = require('./clientPaymentSubmissionAndVendorApprovalTests');
+  if (typeof runStage2PaymentWorkflowTests === 'function') {
+    await runStage2PaymentWorkflowTests();
+  }
 }
 
 runTests().catch((err) => {

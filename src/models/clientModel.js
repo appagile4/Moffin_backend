@@ -92,6 +92,11 @@ const clientSchema = new mongoose.Schema(
       default: true,
       index: true
     },
+    balance: {
+      type: Number,
+      default: 0,
+      min: [0, 'Client balance cannot be negative']
+    },
     lastLoginAt: {
       type: Date,
       default: null
