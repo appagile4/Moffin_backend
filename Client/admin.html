@@ -53,6 +53,9 @@
         </div>
         <div class="nav-actions">
           <span id="adminGreeting" class="user-greeting"></span>
+          <a href="/client" class="btn btn-sm btn-secondary" target="_blank"
+            >👤 Client Portal ↗</a
+          >
           <a href="/" class="btn btn-sm btn-secondary" target="_blank"
             >⚡ Vendor Portal ↗</a
           >
@@ -182,6 +185,9 @@
           </button>
           <button class="tab-btn" onclick="switchAdminTab('vendorsTab')">
             👥 Vendor KYC & Accounts
+          </button>
+          <button class="tab-btn" onclick="switchAdminTab('clientsTab')">
+            👤 Client Management
           </button>
           <button
             class="tab-btn"
@@ -923,6 +929,160 @@
             </div>
           </div>
         </div>
+
+        <!-- TAB 6: CLIENT MANAGEMENT & REAL-TIME STATISTICS -->
+        <div id="clientsTab" class="tab-content hidden">
+          <!-- Client Real-Time KPI Stats Cards -->
+          <div class="stats-grid mb-3">
+            <div class="stat-card" style="border-left: 4px solid #4f46e5">
+              <span class="stat-title">Total Clients</span>
+              <span class="stat-value" id="statTotalClients">0</span>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #10b981">
+              <span class="stat-title">Active Clients</span>
+              <span class="stat-value" id="statActiveClients" style="color: #059669">0</span>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #64748b">
+              <span class="stat-title">Inactive Clients</span>
+              <span class="stat-value" id="statInactiveClients" style="color: #64748b">0</span>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #ef4444">
+              <span class="stat-title">Blocked Clients</span>
+              <span class="stat-value" id="statBlockedClients" style="color: #dc2626">0</span>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #0284c7">
+              <span class="stat-title">Verified Clients</span>
+              <span class="stat-value" id="statVerifiedClients" style="color: #0284c7">0</span>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #f59e0b">
+              <span class="stat-title">Unverified</span>
+              <span class="stat-value" id="statUnverifiedClients" style="color: #d97706">0</span>
+            </div>
+          </div>
+
+          <!-- Client Search, Filter & List Card -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>👥 Registered Clients Management</h3>
+                <p class="subtitle">
+                  Search, monitor activity, and manage client account statuses in real-time
+                </p>
+              </div>
+              <button
+                class="btn btn-sm btn-secondary"
+                onclick="fetchAdminClients(); fetchAdminClientStats();"
+              >
+                🔄 Refresh Clients
+              </button>
+            </div>
+
+            <!-- Search and Filter Bar -->
+            <div class="search-filter-bar">
+              <input
+                type="text"
+                id="clientSearchInput"
+                class="search-input form-control"
+                placeholder="🔍 Search clients by name, email, mobile, or ID..."
+                onkeyup="handleClientSearchKeyup(event)"
+              />
+              <div style="display: flex; gap: 0.5rem; align-items: center">
+                <select
+                  id="clientStatusFilter"
+                  onchange="handleClientFilterChange()"
+                  style="
+                    padding: 0.55rem 0.85rem;
+                    border: 1px solid var(--border);
+                    border-radius: 8px;
+                    font-weight: 500;
+                  "
+                >
+                  <option value="">All Statuses</option>
+                  <option value="active">Active Only</option>
+                  <option value="inactive">Inactive Only</option>
+                  <option value="blocked">Blocked Only</option>
+                  <option value="verified">Verified Only</option>
+                  <option value="unverified">Unverified Only</option>
+                </select>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  onclick="searchAdminClients()"
+                >
+                  Search
+                </button>
+              </div>
+            </div>
+
+            <!-- Clients Table -->
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Client ID</th>
+                    <th>Full Name</th>
+                    <th>Email Address</th>
+                    <th>Mobile</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>KYC</th>
+                    <th>Registered At</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminClientsTbody">
+                  <tr>
+                    <td colspan="10" class="empty-state">
+                      Loading registered clients...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Bar -->
+            <div
+              class="flex-between mt-3"
+              style="padding-top: 1rem; border-top: 1px solid var(--border)"
+            >
+              <span
+                id="clientPaginationInfo"
+                class="text-muted"
+                style="font-size: 0.9rem"
+                >Showing 0 of 0 clients</span
+              >
+              <div style="display: flex; gap: 0.5rem">
+                <button
+                  id="btnClientPrevPage"
+                  class="btn btn-sm btn-secondary"
+                  onclick="changeClientPage(-1)"
+                  disabled
+                >
+                  ← Previous
+                </button>
+                <span
+                  id="clientPageIndicator"
+                  style="
+                    padding: 0.25rem 0.75rem;
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    align-self: center;
+                  "
+                  >Page 1</span
+                >
+                <button
+                  id="btnClientNextPage"
+                  class="btn btn-sm btn-secondary"
+                  onclick="changeClientPage(1)"
+                  disabled
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -1473,6 +1633,110 @@
             </div>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL 9: CLIENT STATUS MANAGEMENT MODAL -->
+    <div id="clientStatusModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 500px">
+        <div class="card-header flex-between">
+          <h3>⚙️ Manage Client Account Status</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeClientStatusModal()"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div id="modalClientStatusInfo" class="info-box mb-3">
+          <!-- Injected via JS -->
+        </div>
+
+        <form id="clientStatusForm" onsubmit="submitClientStatusChange(event)">
+          <input type="hidden" id="statusModalClientId" />
+
+          <div class="form-group">
+            <label>New Account Status *</label>
+            <select
+              id="statusModalSelect"
+              required
+              style="
+                width: 100%;
+                padding: 0.65rem;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                font-size: 0.95rem;
+                font-weight: 600;
+              "
+            >
+              <option value="active">🟢 Active (Allow login & operations)</option>
+              <option value="inactive">⚪ Inactive (Deactivate account)</option>
+              <option value="blocked">🔴 Blocked (Block all access)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Reason / Audit Note (Optional)</label>
+            <textarea
+              id="statusModalReason"
+              placeholder="e.g. KYC reviewed / suspicious activity detected"
+              style="
+                width: 100%;
+                height: 70px;
+                padding: 0.65rem;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                font-family: inherit;
+                font-size: 0.9rem;
+              "
+            ></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeClientStatusModal()"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">
+              Save Account Status
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 10: CLIENT DETAILS MODAL -->
+    <div id="clientDetailModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 600px">
+        <div class="card-header flex-between">
+          <h3>🔍 Client Profile Details</h3>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeClientDetailModal()"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div id="modalClientDetailContent">
+          <!-- Injected via JS -->
+        </div>
+
+        <div class="modal-actions" style="margin-top: 1.5rem">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick="closeClientDetailModal()"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
 

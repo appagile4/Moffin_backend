@@ -15,6 +15,7 @@ const sendRoleError = (res, statusCode, message) => {
  *   roleMiddleware('super_admin')
  *   roleMiddleware('admin', 'super_admin')
  *   roleMiddleware('staff', 'admin', 'super_admin')
+ *   roleMiddleware('client')
  */
 const roleMiddleware = (...allowedRoles) => {
   return (req, res, next) => {
@@ -46,8 +47,15 @@ const superAdminAuth = roleMiddleware('super_admin');
  */
 const adminAuth = roleMiddleware('admin', 'super_admin');
 
+/**
+ * Client Level Authorization Middleware
+ * Allows users with role: 'client'
+ */
+const clientRoleAuth = roleMiddleware('client');
+
 module.exports = {
   roleMiddleware,
   superAdminAuth,
-  adminAuth
+  adminAuth,
+  clientRoleAuth
 };

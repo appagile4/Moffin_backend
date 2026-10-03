@@ -18,6 +18,14 @@ const {
   deactivateVendor
 } = require('../controllers/vendorController');
 
+// Client Management & Statistics
+const {
+  getAdminClientStats,
+  getAdminClients,
+  getAdminClientById,
+  updateAdminClientStatus
+} = require('../controllers/adminClientController');
+
 // TopUp Management
 const {
   adminGetAllTopUps,
@@ -97,13 +105,21 @@ router.patch('/vendors/:vendorId/activate', authMiddleware, superAdminAuth, vali
 router.patch('/vendors/:vendorId/deactivate', authMiddleware, superAdminAuth, validateObjectId('vendorId'), deactivateVendor);
 
 // =============================================================================
-// 3. TOP-UP REQUEST MANAGEMENT
+// 3. CLIENT MANAGEMENT & REAL-TIME DASHBOARD STATISTICS
+// =============================================================================
+router.get('/clients/stats', authMiddleware, adminAuth, getAdminClientStats);
+router.get('/clients', authMiddleware, adminAuth, getAdminClients);
+router.get('/clients/:clientId', authMiddleware, adminAuth, validateObjectId('clientId'), getAdminClientById);
+router.patch('/clients/:clientId/status', authMiddleware, superAdminAuth, validateObjectId('clientId'), updateAdminClientStatus);
+
+// =============================================================================
+// 4. TOP-UP REQUEST MANAGEMENT
 // =============================================================================
 router.get('/topups', authMiddleware, adminAuth, adminGetAllTopUps);
 router.post('/topups/:id/respond', authMiddleware, adminAuth, validateObjectId('id'), adminRespondTopUp);
 
 // =============================================================================
-// 4. PAYMENT VERIFICATION & APPROVAL / REJECTION
+// 5. PAYMENT VERIFICATION & APPROVAL / REJECTION
 // =============================================================================
 router.get('/payment-confirmations', authMiddleware, adminAuth, adminGetAllConfirmations);
 router.post(
@@ -122,7 +138,7 @@ router.post(
 );
 
 // =============================================================================
-// 5. COMPANY PAYMENT DESTINATIONS (Bank / Wallet)
+// 6. COMPANY PAYMENT DESTINATIONS (Bank / Wallet)
 // =============================================================================
 router.get('/payment-destinations', authMiddleware, adminAuth, getDestinations);
 router.post('/payment-destinations', authMiddleware, superAdminAuth, upload.single('qrCode'), createDestination);
@@ -132,20 +148,20 @@ router.patch('/payment-destinations/:id/toggle', authMiddleware, superAdminAuth,
 router.delete('/payment-destinations/:id', authMiddleware, superAdminAuth, validateObjectId('id'), deleteDestination);
 
 // =============================================================================
-// 6. VENDOR WALLET & LEDGER MONITORING
+// 7. VENDOR WALLET & LEDGER MONITORING
 // =============================================================================
 router.get('/vendors/:vendorId/wallet', authMiddleware, adminAuth, validateObjectId('vendorId'), adminGetVendorWallet);
 router.get('/vendors/:vendorId/transactions', authMiddleware, adminAuth, validateObjectId('vendorId'), adminGetVendorTransactions);
 
 // =============================================================================
-// 7. FCFS PRIORITY QUEUE & CLIENT TRANSACTIONS
+// 8. FCFS PRIORITY QUEUE & CLIENT TRANSACTIONS
 // =============================================================================
 router.get('/fcfs/vendors', authMiddleware, adminAuth, getQueue);
 router.patch('/fcfs/reorder', authMiddleware, superAdminAuth, reorderQueue);
 router.get('/fcfs/transactions', authMiddleware, adminAuth, getClientTransactions);
 
 // =============================================================================
-// 8. VENDOR TIERS & MONTHLY PROGRESSION
+// 9. VENDOR TIERS & MONTHLY PROGRESSION
 // =============================================================================
 router.get('/tiers/analytics', authMiddleware, adminAuth, getAdminTierAnalytics);
 router.post('/tiers/run-monthly-reset', authMiddleware, superAdminAuth, handleRunMonthlyReset);
@@ -161,8 +177,9 @@ router.get('/vendors/:vendorId/monthly-history', authMiddleware, adminAuth, vali
 router.get('/vendors/:vendorId/tier-movements', authMiddleware, adminAuth, validateObjectId('vendorId'), getVendorTierMovements);
 router.post('/vendors/:vendorId/manual-commission', authMiddleware, superAdminAuth, validateObjectId('vendorId'), handleSetManualCommission);
 router.delete('/vendors/:vendorId/manual-commission', authMiddleware, superAdminAuth, validateObjectId('vendorId'), handleRemoveManualCommission);
+
 // =============================================================================
-// 9. AUDIT LOGS
+// 10. AUDIT LOGS
 // =============================================================================
 const AuditLog = require('../models/auditLogModel');
 router.get('/audit-logs', authMiddleware, adminAuth, async (req, res, next) => {

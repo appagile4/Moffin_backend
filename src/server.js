@@ -23,6 +23,11 @@ app.get(['/', '/vendor'], (req, res) => {
   res.sendFile(path.join(__dirname, '../Client/index.html'));
 });
 
+// Serve Client UI at /client
+app.get('/client', (req, res) => {
+  res.sendFile(path.join(__dirname, '../Client/client.html'));
+});
+
 // Sample API test route
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -33,11 +38,13 @@ app.get('/api/health', (req, res) => {
 });
 
 // Route Imports
+const authRoutes = require('./routes/authRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const clientRoutes = require('./routes/clientRoutes');
 
 // Mount API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/client', clientRoutes);

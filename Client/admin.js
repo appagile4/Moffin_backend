@@ -69,6 +69,9 @@ function switchAdminTab(tabId) {
     fetchAdminRequestHistory();
   } else if (tabId === 'vendorsTab') {
     fetchAdminVendors();
+  } else if (tabId === 'clientsTab') {
+    fetchAdminClientStats();
+    fetchAdminClients();
   } else if (tabId === 'tiersManagementTab') {
     fetchAdminTierAnalytics();
     fetchAdminTiersList();
@@ -1877,4 +1880,255 @@ function adminLogout() {
   showAdminLoginSection();
   showToast('SuperAdmin logged out', 'success');
 }
+
+/**
+ * =============================================================================
+ * 12. Client Management & Statistics Functions
+ * =============================================================================
+ */
+let clientCurrentPage = 1;
+let clientLimit = 10;
+let clientTotalPages = 1;
+let clientSearchQuery = '';
+let clientFilterStatus = '';
+let clientsCache = [];
+
+async function fetchAdminClientStats() {
+  if (!adminToken) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/clients/stats`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const data = await res.json();
+
+    if (data.success && data.data) {
+      document.getElementById('statTotalClients').textContent = (data.data.totalClients || 0).toLocaleString();
+      document.getElementById('statActiveClients').textContent = (data.data.activeClients || 0).toLocaleString();
+      document.getElementById('statInactiveClients').textContent = (data.data.inactiveClients || 0).toLocaleString();
+      document.getElementById('statBlockedClients').textContent = (data.data.blockedClients || 0).toLocaleString();
+      document.getElementById('statVerifiedClients').textContent = (data.data.verifiedClients || 0).toLocaleString();
+      document.getElementById('statUnverifiedClients').textContent = (data.data.unverifiedClients || 0).toLocaleString();
+    }
+  } catch (err) {
+    console.error('fetchAdminClientStats error:', err);
+  }
+}
+
+async function fetchAdminClients(page = clientCurrentPage) {
+  if (!adminToken) return;
+
+  clientCurrentPage = page;
+  const tbody = document.getElementById('adminClientsTbody');
+  tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Loading registered clients...</td></tr>';
+
+  try {
+    let url = `${API_BASE}/admin/clients?page=${clientCurrentPage}&limit=${clientLimit}`;
+    if (clientSearchQuery) url += `&search=${encodeURIComponent(clientSearchQuery)}`;
+    if (clientFilterStatus) url += `&status=${encodeURIComponent(clientFilterStatus)}`;
+
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const data = await res.json();
+
+    if (data.success && data.data) {
+      clientsCache = data.data.clients || [];
+      const pagination = data.data.pagination || { page: 1, limit: 10, total: 0, totalPages: 1 };
+      clientTotalPages = pagination.totalPages;
+
+      renderAdminClientsTable(clientsCache);
+      updateClientPagination(pagination);
+    } else {
+      tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Failed to load clients.</td></tr>';
+    }
+  } catch (err) {
+    console.error('fetchAdminClients error:', err);
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Error loading clients list.</td></tr>';
+  }
+}
+
+function renderAdminClientsTable(clients) {
+  const tbody = document.getElementById('adminClientsTbody');
+  if (!clients || clients.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No clients match your filter criteria.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = clients.map(client => {
+    const clientId = client._id || client.id;
+    const fullName = `${client.firstName} ${client.lastName}`;
+    const email = client.email;
+    const mobile = client.mobile || '--';
+    const role = `<span class="badge badge-info">${client.role || 'client'}</span>`;
+    
+    let statusBadge = '<span class="status-pill active">Active</span>';
+    if (client.status === 'blocked' || client.isBlocked) {
+      statusBadge = '<span class="status-pill blocked">Blocked</span>';
+    } else if (client.status === 'inactive' || !client.isActive) {
+      statusBadge = '<span class="status-pill inactive">Inactive</span>';
+    }
+
+    const kycBadge = client.isVerified
+      ? '<span class="badge badge-success">Verified</span>'
+      : '<span class="badge badge-warning">Unverified</span>';
+
+    const registeredAt = new Date(client.createdAt).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    const lastLogin = client.lastLoginAt
+      ? new Date(client.lastLoginAt).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : '<span class="text-muted">Never</span>';
+
+    return `
+      <tr>
+        <td><code style="font-size: 0.78rem;">${clientId.substring(0, 8)}...</code></td>
+        <td><strong>${fullName}</strong></td>
+        <td>${email}</td>
+        <td>${mobile}</td>
+        <td>${role}</td>
+        <td>${statusBadge}</td>
+        <td>${kycBadge}</td>
+        <td><small>${registeredAt}</small></td>
+        <td><small>${lastLogin}</small></td>
+        <td>
+          <div style="display: flex; gap: 0.35rem;">
+            <button class="btn btn-sm btn-secondary" onclick="openClientDetailModal('${clientId}')" title="View Profile Details">
+              👁️ View
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="openClientStatusModal('${clientId}')" title="Manage Status">
+              ⚙️ Status
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function updateClientPagination(pagination) {
+  const info = document.getElementById('clientPaginationInfo');
+  const indicator = document.getElementById('clientPageIndicator');
+  const btnPrev = document.getElementById('btnClientPrevPage');
+  const btnNext = document.getElementById('btnClientNextPage');
+
+  const start = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const end = Math.min(pagination.page * pagination.limit, pagination.total);
+
+  info.textContent = `Showing ${start} to ${end} of ${pagination.total} clients`;
+  indicator.textContent = `Page ${pagination.page} of ${pagination.totalPages}`;
+
+  btnPrev.disabled = pagination.page <= 1;
+  btnNext.disabled = pagination.page >= pagination.totalPages;
+}
+
+function changeClientPage(delta) {
+  const newPage = clientCurrentPage + delta;
+  if (newPage >= 1 && newPage <= clientTotalPages) {
+    fetchAdminClients(newPage);
+  }
+}
+
+function handleClientSearchKeyup(e) {
+  if (e.key === 'Enter') {
+    searchAdminClients();
+  }
+}
+
+function searchAdminClients() {
+  const input = document.getElementById('clientSearchInput');
+  clientSearchQuery = input.value.trim();
+  fetchAdminClients(1);
+}
+
+function handleClientFilterChange() {
+  const select = document.getElementById('clientStatusFilter');
+  clientFilterStatus = select.value;
+  fetchAdminClients(1);
+}
+
+function openClientStatusModal(clientId) {
+  const client = clientsCache.find(c => (c._id || c.id) === clientId);
+  if (!client) return;
+
+  document.getElementById('statusModalClientId').value = clientId;
+  document.getElementById('modalClientStatusInfo').innerHTML = `
+    <strong>Client:</strong> ${client.firstName} ${client.lastName} (${client.email})<br>
+    <strong>Current Status:</strong> <span class="badge badge-info">${(client.status || 'active').toUpperCase()}</span>
+  `;
+
+  document.getElementById('statusModalSelect').value = client.status || (client.isBlocked ? 'blocked' : (client.isActive ? 'active' : 'inactive'));
+  document.getElementById('statusModalReason').value = '';
+  document.getElementById('clientStatusModal').classList.remove('hidden');
+}
+
+function closeClientStatusModal() {
+  document.getElementById('clientStatusModal').classList.add('hidden');
+}
+
+async function submitClientStatusChange(event) {
+  event.preventDefault();
+  const clientId = document.getElementById('statusModalClientId').value;
+  const newStatus = document.getElementById('statusModalSelect').value;
+  const reason = document.getElementById('statusModalReason').value.trim();
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/clients/${clientId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({ status: newStatus, reason })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || `Client status updated to ${newStatus}`, 'success');
+      closeClientStatusModal();
+      fetchAdminClients(clientCurrentPage);
+      fetchAdminClientStats();
+    } else {
+      showToast(data.message || 'Failed to update client status', 'error');
+    }
+  } catch (err) {
+    console.error('submitClientStatusChange error:', err);
+    showToast('Server error updating client status', 'error');
+  }
+}
+
+function openClientDetailModal(clientId) {
+  const client = clientsCache.find(c => (c._id || c.id) === clientId);
+  if (!client) return;
+
+  const content = document.getElementById('modalClientDetailContent');
+  content.innerHTML = `
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.9rem;">
+      <div><strong>Full Name:</strong> ${client.firstName} ${client.lastName}</div>
+      <div><strong>Role:</strong> <span class="badge badge-info">${client.role}</span></div>
+      <div><strong>Email:</strong> ${client.email}</div>
+      <div><strong>Mobile:</strong> ${client.mobile || '--'}</div>
+      <div><strong>Status:</strong> <span class="status-pill ${client.status}">${client.status.toUpperCase()}</span></div>
+      <div><strong>KYC Verified:</strong> ${client.isVerified ? 'Yes' : 'No'}</div>
+      <div><strong>Registered At:</strong> ${new Date(client.createdAt).toLocaleString('en-IN')}</div>
+      <div><strong>Last Login:</strong> ${client.lastLoginAt ? new Date(client.lastLoginAt).toLocaleString('en-IN') : 'Never'}</div>
+      <div style="grid-column: span 2;"><strong>Client MongoDB ID:</strong> <code>${client._id || client.id}</code></div>
+    </div>
+  `;
+
+  document.getElementById('clientDetailModal').classList.remove('hidden');
+}
+
+function closeClientDetailModal() {
+  document.getElementById('clientDetailModal').classList.add('hidden');
+}
+
 

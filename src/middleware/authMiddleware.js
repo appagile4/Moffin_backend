@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const Vendor = require('../models/vendorModel');
+const Client = require('../models/clientModel');
 
 /**
  * Standard error response helper for middleware
@@ -14,7 +15,7 @@ const sendAuthError = (res, statusCode, message) => {
 
 /**
  * 1. Base Authentication Middleware
- * Validates the JWT Bearer token and attaches decoded payload { id, role } to req.user.
+ * Validates the JWT Bearer token and attaches decoded payload { id, role, email } to req.user.
  */
 const authMiddleware = async (req, res, next) => {
   try {
@@ -39,7 +40,8 @@ const authMiddleware = async (req, res, next) => {
     // Attach verified user payload to request
     req.user = {
       id: decoded.id,
-      role: decoded.role
+      role: decoded.role,
+      email: decoded.email
     };
 
     next();
@@ -82,7 +84,38 @@ const vendorAuth = async (req, res, next) => {
 };
 
 /**
- * 3. Verified Vendor Authentication Middleware
+ * 3. Client Authentication Middleware
+ * Ensures the authenticated user has role 'client', exists in DB, is active, is not blocked, and attaches req.client.
+ */
+const clientAuth = async (req, res, next) => {
+  try {
+    if (!req.user || req.user.role !== 'client') {
+      return sendAuthError(res, 403, 'Forbidden. Client access required.');
+    }
+
+    const client = await Client.findById(req.user.id);
+    if (!client) {
+      return sendAuthError(res, 404, 'Client account not found.');
+    }
+
+    if (client.isBlocked || client.status === 'blocked') {
+      return sendAuthError(res, 403, 'Your account has been blocked. Please contact support.');
+    }
+
+    if (!client.isActive || client.status === 'inactive') {
+      return sendAuthError(res, 403, 'Client account is deactivated. Please contact support.');
+    }
+
+    req.client = client;
+    next();
+  } catch (error) {
+    console.error('clientAuth error:', error);
+    return sendAuthError(res, 500, 'Error verifying client authentication.');
+  }
+};
+
+/**
+ * 4. Verified Vendor Authentication Middleware
  * Ensures vendor is authenticated, active, AND has verificationStatus === 'approved'.
  */
 const verifiedVendorAuth = async (req, res, next) => {
@@ -117,8 +150,8 @@ const verifiedVendorAuth = async (req, res, next) => {
 };
 
 /**
- * 4. Active User Middleware
- * Generic check to verify if the authenticated user/vendor account is currently active.
+ * 5. Active User Middleware
+ * Generic check to verify if the authenticated user/vendor/client account is currently active.
  */
 const activeUserAuth = async (req, res, next) => {
   try {
@@ -129,9 +162,20 @@ const activeUserAuth = async (req, res, next) => {
     if (req.user.role === 'vendor') {
       const vendor = req.vendor || (await Vendor.findById(req.user.id).select('isActive'));
       if (!vendor) {
-        return sendAuthError(res, 404, 'User account not found.');
+        return sendAuthError(res, 404, 'Vendor account not found.');
       }
       if (!vendor.isActive) {
+        return sendAuthError(res, 403, 'Your account is deactivated. Please contact support.');
+      }
+    } else if (req.user.role === 'client') {
+      const client = req.client || (await Client.findById(req.user.id).select('isActive isBlocked status'));
+      if (!client) {
+        return sendAuthError(res, 404, 'Client account not found.');
+      }
+      if (client.isBlocked || client.status === 'blocked') {
+        return sendAuthError(res, 403, 'Your account is blocked. Please contact support.');
+      }
+      if (!client.isActive || client.status === 'inactive') {
         return sendAuthError(res, 403, 'Your account is deactivated. Please contact support.');
       }
     }
@@ -144,8 +188,8 @@ const activeUserAuth = async (req, res, next) => {
 };
 
 /**
- * 5. Validate MongoDB ObjectId Middleware Factory
- * Validates request parameters (e.g., :vendorId, :bankAccountId, :walletId) before hitting controllers.
+ * 6. Validate MongoDB ObjectId Middleware Factory
+ * Validates request parameters (e.g., :clientId, :vendorId, :bankAccountId, :walletId) before hitting controllers.
  */
 const validateObjectId = (paramName) => {
   return (req, res, next) => {
@@ -160,6 +204,7 @@ const validateObjectId = (paramName) => {
 module.exports = {
   authMiddleware,
   vendorAuth,
+  clientAuth,
   verifiedVendorAuth,
   activeUserAuth,
   validateObjectId

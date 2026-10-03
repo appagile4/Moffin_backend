@@ -455,11 +455,13 @@ async function runTests() {
   await VendorWallet.deleteMany({ vendorId: { $in: [vendorA._id, vendorB._id, vendorC._id] } });
   await WalletTransaction.deleteMany({ vendorId: { $in: [vendorA._id, vendorB._id, vendorC._id] } });
   await FCFSQueue.deleteMany({ vendorId: { $in: [vendorA._id, vendorB._id, vendorC._id] } });
-  await mongoose.disconnect();
-
   // Run Monthly Tier Engine Test Suite
   const { runTierTests } = require('./tierSystemTests');
   await runTierTests();
+
+  // Run Client Auth & Admin Client Management Test Suite
+  const { runClientTests } = require('./clientAuthAndAdminManagementTests');
+  await runClientTests();
 }
 
 runTests().catch((err) => {
