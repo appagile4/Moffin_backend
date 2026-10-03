@@ -831,33 +831,42 @@
             <div class="card">
               <div class="card-header flex-between">
                 <div>
-                  <h3>🎯 Live FCFS Priority Queue</h3>
+                  <h3>🎯 Live FCFS Priority Queue & Vendor Allocation</h3>
                   <p class="subtitle">
-                    Automatic client transaction allocation order
+                    Ordered by earliest approved top-up. Re-topping up moves a vendor to the end of the queue.
                   </p>
                 </div>
-                <button
-                  class="btn btn-sm btn-secondary"
-                  onclick="fetchAdminFcfsQueue()"
-                >
-                  🔄 Refresh
-                </button>
+                <div style="display: flex; gap: 8px;">
+                  <button
+                    class="btn btn-sm btn-secondary"
+                    onclick="fetchAdminFcfsQueue()"
+                  >
+                    🔄 Refresh Queue
+                  </button>
+                </div>
               </div>
+
+              <!-- FCFS Explanation Banner -->
+              <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(99, 102, 241, 0.03)); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.85rem; line-height: 1.5; color: #4338ca;">
+                <strong>💡 FCFS Queue Rule:</strong> Top priority (<strong>Rank #1</strong>) is held by the vendor who had the earliest approved top-up. When any vendor completes another qualifying approved top-up, they automatically rotate to the <strong>last position</strong> (end of queue). Client payment allocation and confirmations do not alter queue ordering.
+              </div>
+
               <div style="overflow-x: auto">
                 <table class="custom-table">
                   <thead>
                     <tr>
-                      <th>Rank</th>
-                      <th>Vendor</th>
+                      <th style="width: 100px;">Priority Rank</th>
+                      <th>Vendor Profile</th>
                       <th>Wallet Balance</th>
-                      <th>Skips</th>
-                      <th>Status</th>
-                      <th>Actions</th>
+                      <th>Bank Details</th>
+                      <th>Wallets / UPI</th>
+                      <th>Eligibility & Status</th>
+                      <th style="width: 130px;">Reorder</th>
                     </tr>
                   </thead>
                   <tbody id="adminFcfsTbody">
                     <tr>
-                      <td colspan="6" class="empty-state">
+                      <td colspan="7" class="empty-state">
                         Loading FCFS queue...
                       </td>
                     </tr>
@@ -1020,20 +1029,19 @@
                 <thead>
                   <tr>
                     <th>Client ID</th>
-                    <th>Full Name</th>
-                    <th>Email Address</th>
-                    <th>Mobile</th>
-                    <th>Role</th>
+                    <th>Full Name & Email</th>
+                    <th>Phone & WhatsApp</th>
+                    <th>Business / Platform</th>
+                    <th>Telegram IDs</th>
                     <th>Status</th>
                     <th>KYC</th>
                     <th>Registered At</th>
-                    <th>Last Login</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="adminClientsTbody">
                   <tr>
-                    <td colspan="10" class="empty-state">
+                    <td colspan="9" class="empty-state">
                       Loading registered clients...
                     </td>
                   </tr>

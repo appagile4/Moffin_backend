@@ -45,6 +45,24 @@ const getSafeClient = (clientDoc) => {
   return obj;
 };
 
+/**
+ * Helper: Clean and format telegram IDs array
+ */
+const formatTelegramIds = (telegramIds) => {
+  if (Array.isArray(telegramIds)) {
+    return telegramIds
+      .map((t) => (typeof t === 'string' ? t.trim() : ''))
+      .filter(Boolean);
+  }
+  if (typeof telegramIds === 'string' && telegramIds.trim()) {
+    return telegramIds
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
 // =============================================================================
 // 1. CLIENT REGISTRATION
 // =============================================================================
@@ -56,7 +74,20 @@ const getSafeClient = (clientDoc) => {
  */
 const registerClient = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, mobile, mobileNumber } = req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      mobile,
+      mobileNumber,
+      whatsappNumber,
+      alternativeMobileNumber,
+      platformUrl,
+      businessType,
+      telegramIds
+    } = req.body;
+
     const clientMobile = mobile || mobileNumber;
 
     // 1. Validate required fields
@@ -93,16 +124,28 @@ const registerClient = async (req, res) => {
       return sendError(res, 409, 'A client with this mobile number already exists');
     }
 
-    // 5. Hash password securely
+    // 5. Clean optional fields
+    const cleanWhatsapp = whatsappNumber ? whatsappNumber.toString().trim() : null;
+    const cleanAltMobile = alternativeMobileNumber ? alternativeMobileNumber.toString().trim() : null;
+    const cleanPlatformUrl = platformUrl ? platformUrl.toString().trim() : null;
+    const cleanBusinessType = businessType ? businessType.toString().trim() : null;
+    const cleanTelegramIds = formatTelegramIds(telegramIds);
+
+    // 6. Hash password securely
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 6. Create client (Role is strictly forced to 'client')
+    // 7. Create client (Role is strictly forced to 'client')
     const newClient = await Client.create({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: cleanEmail,
       mobile: cleanMobile,
+      whatsappNumber: cleanWhatsapp,
+      alternativeMobileNumber: cleanAltMobile,
+      platformUrl: cleanPlatformUrl,
+      businessType: cleanBusinessType,
+      telegramIds: cleanTelegramIds,
       password: hashedPassword,
       role: 'client',
       status: 'active',
@@ -111,18 +154,24 @@ const registerClient = async (req, res) => {
       isVerified: true
     });
 
-    // 7. Generate Token & Prepare Safe Response
+    // 8. Generate Token & Prepare Safe Response
     const token = generateClientToken(newClient);
     const safeClient = getSafeClient(newClient);
 
-    // 8. Audit Log
+    // 9. Audit Log
     await logAction({
       actor: newClient._id.toString(),
       actorRole: 'client',
       action: 'CLIENT_REGISTERED',
       targetType: 'Client',
       targetId: newClient._id.toString(),
-      metadata: { email: cleanEmail, mobile: cleanMobile }
+      metadata: {
+        email: cleanEmail,
+        mobile: cleanMobile,
+        platformUrl: cleanPlatformUrl,
+        businessType: cleanBusinessType,
+        telegramCount: cleanTelegramIds.length
+      }
     });
 
     return sendSuccess(res, 201, 'Client registered successfully', {
@@ -213,7 +262,7 @@ const loginClient = async (req, res) => {
 };
 
 // =============================================================================
-// 3. CLIENT PROFILE
+// 3. CLIENT PROFILE & UPDATE
 // =============================================================================
 
 /**
@@ -244,9 +293,58 @@ const getClientProfile = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Update authenticated client personal information
+ * @route   PUT /api/client/profile or PUT /api/client/me
+ * @access  Private (Client)
+ */
+const updateClientProfile = async (req, res) => {
+  try {
+    const clientId = req.user?.id || req.user?._id;
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      return sendError(res, 400, 'Invalid authenticated client ID');
+    }
+
+    const client = await Client.findById(clientId);
+    if (!client) {
+      return sendError(res, 404, 'Client profile not found');
+    }
+
+    const {
+      firstName,
+      lastName,
+      whatsappNumber,
+      alternativeMobileNumber,
+      platformUrl,
+      businessType,
+      telegramIds
+    } = req.body;
+
+    if (firstName !== undefined) client.firstName = firstName.trim();
+    if (lastName !== undefined) client.lastName = lastName.trim();
+    if (whatsappNumber !== undefined) client.whatsappNumber = whatsappNumber ? whatsappNumber.trim() : null;
+    if (alternativeMobileNumber !== undefined) client.alternativeMobileNumber = alternativeMobileNumber ? alternativeMobileNumber.trim() : null;
+    if (platformUrl !== undefined) client.platformUrl = platformUrl ? platformUrl.trim() : null;
+    if (businessType !== undefined) client.businessType = businessType ? businessType.trim() : null;
+    if (telegramIds !== undefined) client.telegramIds = formatTelegramIds(telegramIds);
+
+    await client.save();
+
+    const safeClient = getSafeClient(client);
+
+    return sendSuccess(res, 200, 'Client profile updated successfully', {
+      client: safeClient
+    });
+  } catch (error) {
+    console.error('updateClientProfile Error:', error);
+    return sendError(res, 500, error.message || 'Error updating client profile');
+  }
+};
+
 module.exports = {
   registerClient,
   loginClient,
   getClientProfile,
+  updateClientProfile,
   generateClientToken
 };

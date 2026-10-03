@@ -4,7 +4,7 @@ const PaymentConfirmation = require('../models/paymentConfirmationModel');
 const PaymentDestination = require('../models/paymentDestinationModel');
 const Vendor = require('../models/vendorModel');
 const { creditWallet } = require('./walletService');
-const { syncVendorToQueue } = require('./fcfsService');
+const { syncVendorToQueue, moveVendorToEndOfQueue } = require('./fcfsService');
 const { logAction } = require('./auditService');
 const { uploadToCloudinary } = require('../config/cloudinary');
 
@@ -447,8 +447,8 @@ const adminApprovePayment = async (confirmationId, adminId) => {
       session
     });
 
-    // 7. Auto-register vendor in FCFS queue if not present
-    await syncVendorToQueue(confirmation.vendorId);
+    // 7. Update FCFS Queue: Move vendor with approved top-up to the end of the queue
+    await moveVendorToEndOfQueue(confirmation.vendorId, session);
 
     // 8. Dynamically recalculate vendor's monthly tier and progression
     const { recalculateVendorMonthlyTier } = require('./tierCalculationService');

@@ -1257,30 +1257,143 @@ async function fetchAdminFcfsQueue() {
 
     if (data.success && data.data?.queue?.length > 0) {
       fcfsQueueCache = data.data.queue;
-      tbody.innerHTML = data.data.queue.map(q => {
+      const totalInQueue = data.data.queue.length;
+
+      tbody.innerHTML = data.data.queue.map((q, index) => {
         const v = q.vendorId;
-        const vendorName = v ? `${v.firstName} ${v.lastName}` : 'Unknown';
-        const balance = q.vendorWallet?.balance || 0;
+        const vendorName = v ? `${v.firstName || ''} ${v.lastName || ''}`.trim() || 'Unnamed Vendor' : 'Unknown Vendor';
+        const vendorEmail = v?.email || 'No email';
+        const vendorMobile = v?.mobileNumber || 'No phone';
+        const isVerified = v?.verificationStatus === 'approved';
+        
+        const availableBalance = Number(q.wallet?.availableBalance) || 0;
+        const totalBalance = Number(q.wallet?.balance) || 0;
+        const lockedBalance = Number(q.wallet?.lockedBalance) || 0;
+
+        // Format active bank details
+        const bankAccounts = q.bankAccounts || [];
+        let bankHtml = '';
+        if (bankAccounts.length > 0) {
+          bankHtml = bankAccounts.map(b => `
+            <div style="font-size: 0.8rem; line-height: 1.4; margin-bottom: 4px; padding: 4px 6px; background: #f8fafc; border-radius: 4px; border-left: 3px solid #6366f1;">
+              <div style="font-weight: 600; color: #1e293b;">🏦 ${b.bankName || 'Bank'} ${b.isDefault ? '<span style="font-size:0.7rem; color:#4f46e5; font-weight:700;">(Default)</span>' : ''}</div>
+              <div style="color: #475569; font-family: monospace;">A/C: ${b.accountNumber || 'N/A'}</div>
+              <div style="color: #64748b; font-size: 0.75rem;">IFSC: ${b.ifscCode || 'N/A'} | ${b.accountHolderName || ''}</div>
+            </div>
+          `).join('');
+        } else {
+          bankHtml = '<span style="color: #94a3b8; font-size: 0.8rem; font-style: italic;">No active bank linked</span>';
+        }
+
+        // Format active wallet / UPI details
+        const wallets = q.wallets || [];
+        let walletHtml = '';
+        if (wallets.length > 0) {
+          walletHtml = wallets.map(w => `
+            <div style="font-size: 0.8rem; line-height: 1.4; margin-bottom: 4px; padding: 4px 6px; background: #f8fafc; border-radius: 4px; border-left: 3px solid #10b981;">
+              <div style="font-weight: 600; color: #1e293b;">💳 ${w.walletName || 'UPI/Wallet'} ${w.isDefault ? '<span style="font-size:0.7rem; color:#059669; font-weight:700;">(Default)</span>' : ''}</div>
+              <div style="color: #475569; font-family: monospace;">${w.walletId || 'N/A'}</div>
+            </div>
+          `).join('');
+        } else {
+          walletHtml = '<span style="color: #94a3b8; font-size: 0.8rem; font-style: italic;">No active wallet/UPI</span>';
+        }
+
+        // Rank Badge
+        const isTopPriority = (q.priorityPosition === 1 || index === 0);
+        const rankHtml = isTopPriority
+          ? `
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+              <span class="badge" style="background: linear-gradient(135deg, #10b981, #059669); color: white; font-weight: 800; font-size: 0.8rem; padding: 4px 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(16,185,129,0.3);">
+                👑 #1 Top Priority
+              </span>
+              <span style="font-size: 0.7rem; color: #64748b;">Earliest Top-Up</span>
+            </div>
+          `
+          : `
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+              <span class="badge" style="background: #e2e8f0; color: #334155; font-weight: 700; font-size: 0.85rem; padding: 4px 8px; border-radius: 6px;">
+                #${q.priorityPosition || index + 1}
+              </span>
+              <span style="font-size: 0.7rem; color: #94a3b8;">Rank in Queue</span>
+            </div>
+          `;
+
+        // Eligibility Status
+        let statusBadge = '';
+        if (!q.isActive) {
+          statusBadge = '<span class="badge badge-rejected">⛔ Inactive</span>';
+        } else if (!isVerified) {
+          statusBadge = '<span class="badge badge-warning">⏳ KYC Pending</span>';
+        } else if (availableBalance <= 0) {
+          statusBadge = '<span class="badge badge-rejected">⚠️ Zero Balance</span>';
+        } else if (q.isEligible) {
+          statusBadge = '<span class="badge badge-approved">⚡ Eligible & Ready</span>';
+        } else {
+          statusBadge = `<span class="badge badge-warning">${q.eligibilityReason || 'Checking'}</span>`;
+        }
+
+        const vendorIdStr = v?._id || q.vendorId;
 
         return `
-          <tr>
-            <td><strong>#${q.priority}</strong></td>
-            <td>${vendorName}</td>
-            <td style="font-weight: 700; color: ${balance > 0 ? '#059669' : '#dc2626'};">₹${balance.toLocaleString('en-IN')}</td>
-            <td>${q.consecutiveSkips || 0}</td>
-            <td><span class="badge ${q.isActive ? 'badge-approved' : 'badge-rejected'}">${q.isActive ? 'Active' : 'Inactive'}</span></td>
+          <tr style="${isTopPriority ? 'background-color: rgba(16, 185, 129, 0.04);' : ''}">
+            <td>${rankHtml}</td>
             <td>
-              <button class="btn btn-sm btn-secondary" onclick="moveQueuePriority('${q.vendorId?._id || q.vendorId}', 'up')">⬆️ Up</button>
-              <button class="btn btn-sm btn-secondary" onclick="moveQueuePriority('${q.vendorId?._id || q.vendorId}', 'down')">⬇️ Down</button>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem;">${vendorName}</div>
+                <div style="font-size: 0.8rem; color: #64748b;">📧 ${vendorEmail}</div>
+                <div style="font-size: 0.8rem; color: #64748b;">📱 ${vendorMobile}</div>
+              </div>
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="font-size: 1.05rem; font-weight: 800; color: ${availableBalance > 0 ? '#059669' : '#dc2626'};">
+                  ₹${availableBalance.toLocaleString('en-IN')}
+                </div>
+                ${lockedBalance > 0 ? `<div style="font-size: 0.75rem; color: #d97706;">🔒 Locked: ₹${lockedBalance.toLocaleString('en-IN')}</div>` : ''}
+                <div style="font-size: 0.75rem; color: #94a3b8;">Total: ₹${totalBalance.toLocaleString('en-IN')}</div>
+              </div>
+            </td>
+            <td style="max-width: 200px;">${bankHtml}</td>
+            <td style="max-width: 180px;">${walletHtml}</td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                ${statusBadge}
+                <div style="font-size: 0.75rem; color: #64748b;">Skips: <strong>${q.consecutiveSkips || 0}</strong></div>
+              </div>
+            </td>
+            <td>
+              <div style="display: flex; gap: 4px;">
+                <button
+                  class="btn btn-sm btn-secondary"
+                  title="Move Up in Priority"
+                  ${index === 0 ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''}
+                  onclick="moveQueuePriority('${vendorIdStr}', 'up')"
+                >
+                  ⬆️
+                </button>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  title="Move Down in Priority"
+                  ${index === totalInQueue - 1 ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''}
+                  onclick="moveQueuePriority('${vendorIdStr}', 'down')"
+                >
+                  ⬇️
+                </button>
+              </div>
             </td>
           </tr>
         `;
       }).join('');
     } else {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No vendors in FCFS queue.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No vendors currently in the FCFS queue.</td></tr>';
     }
   } catch (err) {
     console.error('fetchAdminFcfsQueue error:', err);
+    const tbody = document.getElementById('adminFcfsTbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #dc2626;">Failed to load FCFS queue: ${err.message}</td></tr>`;
+    }
   }
 }
 
@@ -1309,8 +1422,10 @@ async function moveQueuePriority(vendorId, direction) {
     });
     const data = await res.json();
     if (data.success) {
-      showToast('Queue reordered successfully', 'success');
+      showToast('Queue priority reordered successfully', 'success');
       fetchAdminFcfsQueue();
+    } else {
+      showToast(data.message || 'Failed to reorder queue', 'error');
     }
   } catch (err) {
     showToast('Failed to reorder queue', 'error');
@@ -1951,7 +2066,7 @@ async function fetchAdminClients(page = clientCurrentPage) {
 function renderAdminClientsTable(clients) {
   const tbody = document.getElementById('adminClientsTbody');
   if (!clients || clients.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No clients match your filter criteria.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No clients match your filter criteria.</td></tr>';
     return;
   }
 
@@ -1960,7 +2075,23 @@ function renderAdminClientsTable(clients) {
     const fullName = `${client.firstName} ${client.lastName}`;
     const email = client.email;
     const mobile = client.mobile || '--';
-    const role = `<span class="badge badge-info">${client.role || 'client'}</span>`;
+    const whatsapp = client.whatsappNumber ? `<br><small style="color: #059669;">📱 WA: ${client.whatsappNumber}</small>` : '';
+    
+    // Business & Platform
+    let businessInfo = '<span class="text-muted">--</span>';
+    if (client.businessType || client.platformUrl) {
+      const bType = client.businessType ? `<span class="badge badge-info" style="font-size: 0.75rem;">${client.businessType}</span>` : '';
+      const pUrl = client.platformUrl ? `<br><a href="${client.platformUrl}" target="_blank" style="font-size: 0.78rem; color: #0284c7; text-decoration: underline;">${client.platformUrl} ↗</a>` : '';
+      businessInfo = `${bType}${pUrl}`;
+    }
+
+    // Telegram IDs
+    let telegramChips = '<span class="text-muted" style="font-size: 0.8rem;">--</span>';
+    if (client.telegramIds && client.telegramIds.length > 0) {
+      telegramChips = client.telegramIds
+        .map(t => `<span class="telegram-chip" style="font-size: 0.75rem; padding: 0.15rem 0.45rem;">✈️ ${t}</span>`)
+        .join(' ');
+    }
     
     let statusBadge = '<span class="status-pill active">Active</span>';
     if (client.status === 'blocked' || client.isBlocked) {
@@ -1979,26 +2110,16 @@ function renderAdminClientsTable(clients) {
       year: 'numeric'
     });
 
-    const lastLogin = client.lastLoginAt
-      ? new Date(client.lastLoginAt).toLocaleDateString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      : '<span class="text-muted">Never</span>';
-
     return `
       <tr>
         <td><code style="font-size: 0.78rem;">${clientId.substring(0, 8)}...</code></td>
-        <td><strong>${fullName}</strong></td>
-        <td>${email}</td>
-        <td>${mobile}</td>
-        <td>${role}</td>
+        <td><strong>${fullName}</strong><br><small class="text-muted">${email}</small></td>
+        <td><strong>${mobile}</strong>${whatsapp}</td>
+        <td>${businessInfo}</td>
+        <td><div style="max-width: 180px; display: flex; flex-wrap: wrap; gap: 0.25rem;">${telegramChips}</div></td>
         <td>${statusBadge}</td>
         <td>${kycBadge}</td>
         <td><small>${registeredAt}</small></td>
-        <td><small>${lastLogin}</small></td>
         <td>
           <div style="display: flex; gap: 0.35rem;">
             <button class="btn btn-sm btn-secondary" onclick="openClientDetailModal('${clientId}')" title="View Profile Details">
@@ -2109,18 +2230,75 @@ function openClientDetailModal(clientId) {
   const client = clientsCache.find(c => (c._id || c.id) === clientId);
   if (!client) return;
 
+  const telegramList = client.telegramIds && client.telegramIds.length > 0
+    ? client.telegramIds.map(t => `<span class="telegram-chip">✈️ ${t}</span>`).join(' ')
+    : '<span class="text-muted">None registered</span>';
+
+  const platformLink = client.platformUrl
+    ? `<a href="${client.platformUrl}" target="_blank" style="color: #0284c7; text-decoration: underline;">${client.platformUrl} ↗</a>`
+    : 'N/A';
+
   const content = document.getElementById('modalClientDetailContent');
   content.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.9rem;">
-      <div><strong>Full Name:</strong> ${client.firstName} ${client.lastName}</div>
-      <div><strong>Role:</strong> <span class="badge badge-info">${client.role}</span></div>
-      <div><strong>Email:</strong> ${client.email}</div>
-      <div><strong>Mobile:</strong> ${client.mobile || '--'}</div>
-      <div><strong>Status:</strong> <span class="status-pill ${client.status}">${client.status.toUpperCase()}</span></div>
-      <div><strong>KYC Verified:</strong> ${client.isVerified ? 'Yes' : 'No'}</div>
-      <div><strong>Registered At:</strong> ${new Date(client.createdAt).toLocaleString('en-IN')}</div>
-      <div><strong>Last Login:</strong> ${client.lastLoginAt ? new Date(client.lastLoginAt).toLocaleString('en-IN') : 'Never'}</div>
-      <div style="grid-column: span 2;"><strong>Client MongoDB ID:</strong> <code>${client._id || client.id}</code></div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.9rem;">
+      <div class="info-card">
+        <span class="label">Full Name</span>
+        <span class="value">${client.firstName} ${client.lastName}</span>
+      </div>
+      <div class="info-card">
+        <span class="label">User Role</span>
+        <span class="value"><span class="badge badge-info">${client.role}</span></span>
+      </div>
+      <div class="info-card">
+        <span class="label">Email Address</span>
+        <span class="value">${client.email}</span>
+      </div>
+      <div class="info-card">
+        <span class="label">Primary Phone</span>
+        <span class="value">${client.mobile || '--'}</span>
+      </div>
+      <div class="info-card">
+        <span class="label">WhatsApp Number</span>
+        <span class="value">${client.whatsappNumber || '--'}</span>
+      </div>
+      <div class="info-card">
+        <span class="label">Alternative Phone</span>
+        <span class="value">${client.alternativeMobileNumber || '--'}</span>
+      </div>
+      <div class="info-card" style="grid-column: span 2;">
+        <span class="label">Platform URL / Website</span>
+        <span class="value">${platformLink}</span>
+      </div>
+      <div class="info-card" style="grid-column: span 2;">
+        <span class="label">Business / Service Type</span>
+        <span class="value">${client.businessType || 'N/A'}</span>
+      </div>
+      <div class="info-card" style="grid-column: span 2;">
+        <span class="label">Telegram IDs</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem;">
+          ${telegramList}
+        </div>
+      </div>
+      <div class="info-card">
+        <span class="label">Account Status</span>
+        <div style="margin-top: 0.25rem;"><span class="status-pill ${client.status}">${client.status.toUpperCase()}</span></div>
+      </div>
+      <div class="info-card">
+        <span class="label">KYC Verification</span>
+        <div style="margin-top: 0.25rem;"><span class="badge badge-${client.isVerified ? 'success' : 'warning'}">${client.isVerified ? 'Verified' : 'Unverified'}</span></div>
+      </div>
+      <div class="info-card">
+        <span class="label">Registered At</span>
+        <span class="value" style="font-size: 0.85rem;">${new Date(client.createdAt).toLocaleString('en-IN')}</span>
+      </div>
+      <div class="info-card">
+        <span class="label">Last Login</span>
+        <span class="value" style="font-size: 0.85rem;">${client.lastLoginAt ? new Date(client.lastLoginAt).toLocaleString('en-IN') : 'Never'}</span>
+      </div>
+      <div class="info-card" style="grid-column: span 2;">
+        <span class="label">MongoDB Client ID</span>
+        <code style="font-size: 0.85rem;">${client._id || client.id}</code>
+      </div>
     </div>
   `;
 

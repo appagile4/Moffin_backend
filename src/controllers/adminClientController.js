@@ -129,7 +129,7 @@ const getAdminClients = async (req, res) => {
       }
     }
 
-    // 2. Search Keyword (Name, Email, Mobile, or ID)
+    // 2. Search Keyword (Name, Email, Mobile, Platform, Business, or ID)
     if (search && search.trim()) {
       const term = search.trim();
       const searchRegex = new RegExp(term, 'i');
@@ -138,7 +138,12 @@ const getAdminClients = async (req, res) => {
         { firstName: searchRegex },
         { lastName: searchRegex },
         { email: searchRegex },
-        { mobile: searchRegex }
+        { mobile: searchRegex },
+        { whatsappNumber: searchRegex },
+        { alternativeMobileNumber: searchRegex },
+        { platformUrl: searchRegex },
+        { businessType: searchRegex },
+        { telegramIds: searchRegex }
       ];
 
       // If search keyword is a valid ObjectId, search by _id as well

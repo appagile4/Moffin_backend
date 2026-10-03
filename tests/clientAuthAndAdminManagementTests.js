@@ -94,13 +94,18 @@ async function runClientTests() {
 
   console.log('--- 1. CLIENT REGISTRATION TESTS ---');
 
-  // TEST 1: Valid Client Registration
+  // TEST 1: Valid Client Registration with all personal & business fields + multiple telegram IDs
   const regMock1 = mockReqRes({
     body: {
       firstName: 'John',
       lastName: 'Doe',
       email: testEmail1,
       mobile: testMobile1,
+      whatsappNumber: '+91 9876500099',
+      alternativeMobileNumber: '+91 9876500088',
+      platformUrl: 'https://johndoe-ecommerce.com',
+      businessType: 'eCommerce / Online Retail',
+      telegramIds: ['@johndoe_official', '@johndoe_support', 't.me/johndoe_vip'],
       password: passwordPlain,
       role: 'admin' // Attempting privilege escalation - backend MUST override to 'client'
     }
@@ -115,11 +120,17 @@ async function runClientTests() {
       regData1.data.token &&
       regData1.data.client.role === 'client' &&
       regData1.data.client.email === testEmail1 &&
+      regData1.data.client.whatsappNumber === '+91 9876500099' &&
+      regData1.data.client.alternativeMobileNumber === '+91 9876500088' &&
+      regData1.data.client.platformUrl === 'https://johndoe-ecommerce.com' &&
+      regData1.data.client.businessType === 'eCommerce / Online Retail' &&
+      regData1.data.client.telegramIds.length === 3 &&
+      regData1.data.client.telegramIds[0] === '@johndoe_official' &&
       regData1.data.client.isActive === true &&
       regData1.data.client.isBlocked === false &&
       regData1.data.client.status === 'active' &&
       regData1.data.client.password === undefined,
-    'Client registers successfully with forced role="client", active status, and clean response (no password)'
+    'Client registers successfully with platformUrl, businessType, whatsappNumber, altNumber, and multiple telegramIds'
   );
 
   // TEST 2: Password is securely hashed in database
@@ -273,8 +284,35 @@ async function runClientTests() {
     profileMock.getStatus() === 200 &&
       profileData.success === true &&
       profileData.data.client.email === testEmail1 &&
+      profileData.data.client.platformUrl === 'https://johndoe-ecommerce.com' &&
+      profileData.data.client.telegramIds.length === 3 &&
       profileData.data.client.password === undefined,
-    'Authenticated client retrieves profile successfully without password exposure'
+    'Authenticated client retrieves personal & business profile successfully without password exposure'
+  );
+
+  // TEST 12B: Client can update personal & business information
+  const updateProfileMock = mockReqRes({
+    user: { id: createdClient1._id.toString(), role: 'client' },
+    body: {
+      firstName: 'Johnathan',
+      lastName: 'Doe Jr',
+      whatsappNumber: '+91 9999911111',
+      platformUrl: 'https://new-johndoe-store.com',
+      businessType: 'Fintech / Digital Payments',
+      telegramIds: ['@john_vip_channel', '@john_desk']
+    }
+  });
+  await clientAuthController.updateClientProfile(updateProfileMock.req, updateProfileMock.res);
+  const updatedData = updateProfileMock.getData();
+  assert(
+    updateProfileMock.getStatus() === 200 &&
+      updatedData.success === true &&
+      updatedData.data.client.firstName === 'Johnathan' &&
+      updatedData.data.client.whatsappNumber === '+91 9999911111' &&
+      updatedData.data.client.platformUrl === 'https://new-johndoe-store.com' &&
+      updatedData.data.client.telegramIds.length === 2 &&
+      updatedData.data.client.telegramIds[0] === '@john_vip_channel',
+    'Client updates personal information, business type, and telegram IDs successfully'
   );
 
   console.log('\n--- 4. ADMIN CLIENT MANAGEMENT & STATISTICS TESTS ---');

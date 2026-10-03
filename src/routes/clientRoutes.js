@@ -4,7 +4,8 @@ const router = express.Router();
 const {
   registerClient,
   loginClient,
-  getClientProfile
+  getClientProfile,
+  updateClientProfile
 } = require('../controllers/clientAuthController');
 
 const {
@@ -31,6 +32,8 @@ router.post('/login', loginClient);
 // =============================================================================
 router.get('/profile', authMiddleware, clientRoleAuth, clientAuth, getClientProfile);
 router.get('/me', authMiddleware, clientRoleAuth, clientAuth, getClientProfile);
+router.put('/profile', authMiddleware, clientRoleAuth, clientAuth, updateClientProfile);
+router.put('/me', authMiddleware, clientRoleAuth, clientAuth, updateClientProfile);
 
 // =============================================================================
 // 3. FCFS TRANSACTION ALLOCATION (Existing Route)

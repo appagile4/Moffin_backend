@@ -19,15 +19,15 @@
     }
     .profile-info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
       margin-top: 1rem;
     }
     .info-card {
       background: #f8fafc;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 1rem;
+      padding: 1.1rem;
     }
     .info-card .label {
       font-size: 0.8rem;
@@ -38,9 +38,10 @@
       display: block;
     }
     .info-card .value {
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: 700;
       color: var(--text-main);
+      word-break: break-word;
     }
     .status-pill {
       display: inline-block;
@@ -60,6 +61,32 @@
     .status-pill.blocked {
       background: #fee2e2;
       color: #991b1b;
+    }
+    .telegram-chips-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.35rem;
+    }
+    .telegram-chip {
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      border-radius: 20px;
+      padding: 0.25rem 0.65rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .telegram-chip .remove-btn {
+      cursor: pointer;
+      color: #0369a1;
+      font-weight: bold;
+    }
+    .telegram-chip .remove-btn:hover {
+      color: #dc2626;
     }
   </style>
 </head>
@@ -91,7 +118,7 @@
     <div id="clientAuthSection" class="card-grid">
       
       <!-- Login Card -->
-      <div class="card">
+      <div class="card" style="align-self: start;">
         <div class="card-header">
           <h2>🔐 Client Login</h2>
           <p class="subtitle">Access your client account and payment profile</p>
@@ -113,9 +140,11 @@
       <div class="card">
         <div class="card-header">
           <h2>📝 Client Registration</h2>
-          <p class="subtitle">Create a client account for instant checkout & transactions</p>
+          <p class="subtitle">Create a client account with business & contact details</p>
         </div>
         <form id="clientRegisterForm" onsubmit="handleClientRegister(event)">
+          
+          <!-- Name Row -->
           <div class="form-row">
             <div class="form-group">
               <label>First Name *</label>
@@ -126,21 +155,75 @@
               <input type="text" id="clientRegLastName" required placeholder="Doe" />
             </div>
           </div>
-          <div class="form-group">
-            <label>Email Address *</label>
-            <input type="email" id="clientRegEmail" required placeholder="john.doe@example.com" />
-          </div>
+
+          <!-- Email & Password Row -->
           <div class="form-row">
             <div class="form-group">
-              <label>Mobile Number *</label>
-              <input type="tel" id="clientRegMobile" required placeholder="9876543210" />
+              <label>Email Address *</label>
+              <input type="email" id="clientRegEmail" required placeholder="john.doe@example.com" />
             </div>
             <div class="form-group">
               <label>Password *</label>
               <input type="password" id="clientRegPassword" required placeholder="Min 6 characters" />
             </div>
           </div>
-          <button type="submit" class="btn btn-success w-full">Register Client Account</button>
+
+          <!-- Contact Numbers Row -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Phone Number *</label>
+              <input type="tel" id="clientRegMobile" required placeholder="+91 9876543210" />
+            </div>
+            <div class="form-group">
+              <label>WhatsApp Number</label>
+              <input type="tel" id="clientRegWhatsapp" placeholder="+91 9876543210" />
+            </div>
+          </div>
+
+          <!-- Alternative Phone & Platform URL Row -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Alternative Number</label>
+              <input type="tel" id="clientRegAltMobile" placeholder="+91 9123456780" />
+            </div>
+            <div class="form-group">
+              <label>Platform URL / Website</label>
+              <input type="url" id="clientRegPlatformUrl" placeholder="https://mybusiness.com" />
+            </div>
+          </div>
+
+          <!-- Business Type -->
+          <div class="form-group">
+            <label>Business / Service Type</label>
+            <select id="clientRegBusinessType" style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.95rem;">
+              <option value="">Select Business / Service Type...</option>
+              <option value="eCommerce / Online Retail">🛍️ eCommerce / Online Retail</option>
+              <option value="Gaming / Esports">🎮 Gaming / Esports</option>
+              <option value="Fintech / Digital Payments">💳 Fintech / Digital Payments</option>
+              <option value="SaaS / Software Services">💻 SaaS / Software Services</option>
+              <option value="Trading / Financial Markets">📈 Trading / Financial Markets</option>
+              <option value="Digital Agency / Marketing">🚀 Digital Agency / Marketing</option>
+              <option value="Consulting / Professional Services">👔 Consulting / Professional Services</option>
+              <option value="Logistics / Courier">🚚 Logistics / Courier</option>
+              <option value="Education / EdTech">🎓 Education / EdTech</option>
+              <option value="Entertainment / Media">🎬 Entertainment / Media</option>
+              <option value="Other Service">🌐 Other Service</option>
+            </select>
+          </div>
+
+          <!-- Multiple Telegram IDs Dynamic Input -->
+          <div class="form-group">
+            <label>Telegram IDs (Can add multiple)</label>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <input type="text" id="clientRegTelegramInput" placeholder="@username or t.me/user" onkeydown="handleTelegramKeyDown(event, 'reg')" />
+              <button type="button" class="btn btn-sm btn-info" onclick="addTelegramId('reg')">+ Add</button>
+            </div>
+            <div id="clientRegTelegramChips" class="telegram-chips-container">
+              <!-- Dynamically populated chips -->
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-success w-full mt-2">Register Client Account</button>
         </form>
       </div>
 
@@ -149,13 +232,17 @@
     <!-- 2. CLIENT DASHBOARD SECTION (When logged in) -->
     <div id="clientDashboardSection" class="hidden">
       
+      <!-- Profile Card -->
       <div class="card mb-3">
         <div class="card-header flex-between">
           <div>
-            <h2>👤 Client Profile & Account Information</h2>
-            <p class="subtitle">Manage your personal details and account status</p>
+            <h2>👤 Personal & Business Information</h2>
+            <p class="subtitle">Detailed view of your registered contact, business, and platform details</p>
           </div>
-          <button class="btn btn-sm btn-secondary" onclick="fetchClientProfile()">🔄 Refresh Profile</button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-sm btn-primary" onclick="openEditProfileModal()">✏️ Edit Profile</button>
+            <button class="btn btn-sm btn-secondary" onclick="fetchClientProfile()">🔄 Refresh</button>
+          </div>
         </div>
 
         <div class="profile-info-grid">
@@ -163,36 +250,65 @@
             <span class="label">Full Name</span>
             <span class="value" id="profileFullName">--</span>
           </div>
+
           <div class="info-card">
             <span class="label">Email Address</span>
             <span class="value" id="profileEmail">--</span>
           </div>
+
           <div class="info-card">
-            <span class="label">Mobile Number</span>
+            <span class="label">Phone Number</span>
             <span class="value" id="profileMobile">--</span>
           </div>
+
           <div class="info-card">
-            <span class="label">User Role</span>
-            <span class="value" style="color: #0284c7;" id="profileRole">client</span>
+            <span class="label">WhatsApp Number</span>
+            <span class="value" id="profileWhatsapp">--</span>
           </div>
+
+          <div class="info-card">
+            <span class="label">Alternative Phone</span>
+            <span class="value" id="profileAltMobile">--</span>
+          </div>
+
+          <div class="info-card">
+            <span class="label">Platform URL / Website</span>
+            <span class="value" id="profilePlatformUrl">--</span>
+          </div>
+
+          <div class="info-card">
+            <span class="label">Business / Service Type</span>
+            <span class="value" id="profileBusinessType">--</span>
+          </div>
+
+          <div class="info-card">
+            <span class="label">Telegram IDs</span>
+            <div id="profileTelegramIds" class="telegram-chips-container">
+              <span class="text-muted" style="font-size: 0.9rem;">None added</span>
+            </div>
+          </div>
+
           <div class="info-card">
             <span class="label">Account Status</span>
             <div style="margin-top: 0.25rem;">
               <span class="status-pill active" id="profileStatusBadge">Active</span>
             </div>
           </div>
+
           <div class="info-card">
             <span class="label">KYC Verification</span>
             <div style="margin-top: 0.25rem;">
               <span class="badge badge-success" id="profileVerifiedBadge">Verified</span>
             </div>
           </div>
+
           <div class="info-card">
-            <span class="label">Client ID</span>
+            <span class="label">Client MongoDB ID</span>
             <span class="value" style="font-size: 0.85rem; font-family: monospace;" id="profileClientId">--</span>
           </div>
+
           <div class="info-card">
-            <span class="label">Last Login</span>
+            <span class="label">Last Login Time</span>
             <span class="value" style="font-size: 0.9rem;" id="profileLastLogin">--</span>
           </div>
         </div>
@@ -201,6 +317,79 @@
     </div>
 
   </main>
+
+  <!-- EDIT PROFILE MODAL -->
+  <div id="clientEditModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 600px;">
+      <div class="card-header flex-between">
+        <h3>✏️ Edit Personal & Business Information</h3>
+        <button type="button" class="btn-close" onclick="closeEditProfileModal()">✕</button>
+      </div>
+
+      <form id="clientEditProfileForm" onsubmit="handleSaveClientProfile(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label>First Name *</label>
+            <input type="text" id="editFirstName" required />
+          </div>
+          <div class="form-group">
+            <label>Last Name *</label>
+            <input type="text" id="editLastName" required />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>WhatsApp Number</label>
+            <input type="tel" id="editWhatsapp" placeholder="+91 9876543210" />
+          </div>
+          <div class="form-group">
+            <label>Alternative Number</label>
+            <input type="tel" id="editAltMobile" placeholder="+91 9123456780" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Platform URL / Website</label>
+          <input type="url" id="editPlatformUrl" placeholder="https://mybusiness.com" />
+        </div>
+
+        <div class="form-group">
+          <label>Business / Service Type</label>
+          <select id="editBusinessType" style="width: 100%; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.95rem;">
+            <option value="">Select Business / Service Type...</option>
+            <option value="eCommerce / Online Retail">🛍️ eCommerce / Online Retail</option>
+            <option value="Gaming / Esports">🎮 Gaming / Esports</option>
+            <option value="Fintech / Digital Payments">💳 Fintech / Digital Payments</option>
+            <option value="SaaS / Software Services">💻 SaaS / Software Services</option>
+            <option value="Trading / Financial Markets">📈 Trading / Financial Markets</option>
+            <option value="Digital Agency / Marketing">🚀 Digital Agency / Marketing</option>
+            <option value="Consulting / Professional Services">👔 Consulting / Professional Services</option>
+            <option value="Logistics / Courier">🚚 Logistics / Courier</option>
+            <option value="Education / EdTech">🎓 Education / EdTech</option>
+            <option value="Entertainment / Media">🎬 Entertainment / Media</option>
+            <option value="Other Service">🌐 Other Service</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Telegram IDs (Can add multiple)</label>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <input type="text" id="editTelegramInput" placeholder="@username" onkeydown="handleTelegramKeyDown(event, 'edit')" />
+            <button type="button" class="btn btn-sm btn-info" onclick="addTelegramId('edit')">+ Add</button>
+          </div>
+          <div id="editTelegramChips" class="telegram-chips-container">
+            <!-- Edit telegram chips -->
+          </div>
+        </div>
+
+        <div class="modal-actions mt-3">
+          <button type="button" class="btn btn-secondary" onclick="closeEditProfileModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script src="client.js"></script>
 </body>

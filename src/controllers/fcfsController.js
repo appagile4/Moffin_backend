@@ -52,14 +52,14 @@ const getVendorQueueStatus = async (req, res) => {
 const reorderQueue = async (req, res) => {
   try {
     const adminId = req.user.id || req.user._id;
-    const { vendorId, newPriorityPosition } = req.body;
+    const { vendorId, newPriorityPosition, vendorOrder } = req.body;
 
-    if (!vendorId || !newPriorityPosition) {
-      return sendError(res, 400, 'Please provide vendorId and newPriorityPosition');
+    if ((!vendorId || !newPriorityPosition) && (!Array.isArray(vendorOrder) || vendorOrder.length === 0)) {
+      return sendError(res, 400, 'Please provide vendorId and newPriorityPosition, or a vendorOrder array');
     }
 
-    const updated = await fcfsService.reorderQueue(vendorId, newPriorityPosition, adminId);
-    return sendSuccess(res, 200, 'FCFS priority reordered successfully', { queueEntry: updated });
+    const result = await fcfsService.reorderQueue({ vendorId, newPriorityPosition, vendorOrder }, adminId);
+    return sendSuccess(res, 200, 'FCFS priority reordered successfully', { data: result });
   } catch (error) {
     console.error('reorderQueue Error:', error.message);
     return sendError(res, 400, error.message || 'Failed to reorder FCFS queue');

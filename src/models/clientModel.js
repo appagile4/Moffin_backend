@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
  */
 const clientSchema = new mongoose.Schema(
   {
+    // 1. Personal & Contact Information
     firstName: {
       type: String,
       required: [true, 'First name is required'],
@@ -31,11 +32,39 @@ const clientSchema = new mongoose.Schema(
       required: [true, 'Mobile number is required'],
       trim: true
     },
+    whatsappNumber: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    alternativeMobileNumber: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    platformUrl: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    businessType: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    telegramIds: {
+      type: [String],
+      default: []
+    },
+
+    // 2. Security Credentials
     password: {
       type: String,
       required: [true, 'Password is required'],
       select: false // Excluded from default queries for security
     },
+
+    // 3. System Role & Status Management
     role: {
       type: String,
       enum: ['client'],
