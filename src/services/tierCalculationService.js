@@ -240,11 +240,21 @@ const getOrCreateMonthlyRecord = async (vendorId, year = null, month = null, ses
       lastUpdatedAt: new Date()
     };
 
-    if (session) {
-      const created = await VendorMonthlyTier.create([newRecordData], { session });
-      record = created[0];
-    } else {
-      record = await VendorMonthlyTier.create(newRecordData);
+    try {
+      if (session) {
+        const created = await VendorMonthlyTier.create([newRecordData], { session });
+        record = created[0];
+      } else {
+        record = await VendorMonthlyTier.create(newRecordData);
+      }
+    } catch (err) {
+      if (err.code === 11000) {
+        let retryQuery = VendorMonthlyTier.findOne({ vendorId, year: currentYear, month: currentMonth });
+        if (session) retryQuery = retryQuery.session(session);
+        record = await retryQuery;
+      } else {
+        throw err;
+      }
     }
   }
 

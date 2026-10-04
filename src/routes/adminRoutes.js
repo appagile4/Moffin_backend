@@ -23,7 +23,8 @@ const {
   getAdminClientStats,
   getAdminClients,
   getAdminClientById,
-  updateAdminClientStatus
+  updateAdminClientStatus,
+  getAllClientTransactionsAdmin
 } = require('../controllers/adminClientController');
 
 // TopUp Management
@@ -116,6 +117,7 @@ router.patch('/vendors/:vendorId/deactivate', authMiddleware, superAdminAuth, va
 // =============================================================================
 router.get('/clients/stats', authMiddleware, adminAuth, getAdminClientStats);
 router.get('/clients', authMiddleware, adminAuth, getAdminClients);
+router.get(['/clients/transactions', '/client-transactions'], authMiddleware, adminAuth, getAllClientTransactionsAdmin);
 router.get('/clients/:clientId', authMiddleware, adminAuth, validateObjectId('clientId'), getAdminClientById);
 router.patch('/clients/:clientId/status', authMiddleware, superAdminAuth, validateObjectId('clientId'), updateAdminClientStatus);
 

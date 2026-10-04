@@ -28,6 +28,23 @@ const {
   clientRoleAuth
 } = require('../middleware/roleMiddleware');
 
+const {
+  getClientBankAccounts,
+  addClientBankAccount,
+  updateClientBankAccount,
+  deleteClientBankAccount,
+  setDefaultClientBankAccount,
+  toggleClientBankAccount,
+  getClientWallets,
+  addClientWallet,
+  updateClientWallet,
+  deleteClientWallet,
+  setDefaultClientWallet,
+  toggleClientWallet
+} = require('../controllers/clientBankWalletController');
+
+const upload = require('../middleware/uploadMiddleware');
+
 // =============================================================================
 // 1. PUBLIC AUTHENTICATION ROUTES
 // =============================================================================
@@ -41,6 +58,26 @@ router.get('/profile', authMiddleware, clientRoleAuth, clientAuth, getClientProf
 router.get('/me', authMiddleware, clientRoleAuth, clientAuth, getClientProfile);
 router.put('/profile', authMiddleware, clientRoleAuth, clientAuth, updateClientProfile);
 router.put('/me', authMiddleware, clientRoleAuth, clientAuth, updateClientProfile);
+
+// =============================================================================
+// 2B. CLIENT BANK ACCOUNTS MANAGEMENT
+// =============================================================================
+router.get('/bank-accounts', authMiddleware, clientRoleAuth, clientAuth, getClientBankAccounts);
+router.post('/bank-accounts', authMiddleware, clientRoleAuth, clientAuth, addClientBankAccount);
+router.put('/bank-accounts/:bankAccountId', authMiddleware, clientRoleAuth, clientAuth, updateClientBankAccount);
+router.delete('/bank-accounts/:bankAccountId', authMiddleware, clientRoleAuth, clientAuth, deleteClientBankAccount);
+router.patch('/bank-accounts/:bankAccountId/default', authMiddleware, clientRoleAuth, clientAuth, setDefaultClientBankAccount);
+router.patch('/bank-accounts/:bankAccountId/toggle', authMiddleware, clientRoleAuth, clientAuth, toggleClientBankAccount);
+
+// =============================================================================
+// 2C. CLIENT WALLETS & QR CODE MANAGEMENT
+// =============================================================================
+router.get('/wallets', authMiddleware, clientRoleAuth, clientAuth, getClientWallets);
+router.post('/wallets', authMiddleware, clientRoleAuth, clientAuth, upload.single('qrCode'), addClientWallet);
+router.put('/wallets/:walletId', authMiddleware, clientRoleAuth, clientAuth, upload.single('qrCode'), updateClientWallet);
+router.delete('/wallets/:walletId', authMiddleware, clientRoleAuth, clientAuth, deleteClientWallet);
+router.patch('/wallets/:walletId/default', authMiddleware, clientRoleAuth, clientAuth, setDefaultClientWallet);
+router.patch('/wallets/:walletId/toggle', authMiddleware, clientRoleAuth, clientAuth, toggleClientWallet);
 
 // =============================================================================
 // 3. CLIENT BALANCE & TRANSACTION HISTORY

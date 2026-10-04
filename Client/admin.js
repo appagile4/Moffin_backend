@@ -76,6 +76,7 @@ function switchAdminTab(tabId) {
   } else if (tabId === 'clientsTab') {
     fetchAdminClientStats();
     fetchAdminClients();
+    fetchAdminClientTransactions();
   } else if (tabId === 'withdrawalsManagementTab') {
     fetchAdminWithdrawals();
   } else if (tabId === 'tiersManagementTab') {
@@ -2288,25 +2289,27 @@ async function openClientDetailModal(clientId) {
       ? `<a href="${client.platformUrl}" target="_blank" style="color: #0284c7; text-decoration: underline;">${client.platformUrl} ↗</a>`
       : 'N/A';
 
-    // Build Recent Transactions Mini Table
+    // Build Recent Transactions Mini Table with Vendor, Tier & Commission Audit
     let txTableHtml = '';
     if (recentTx.length > 0) {
       txTableHtml = `
         <div style="margin-top: 1.25rem;">
           <h4 style="font-size: 0.95rem; color: #1e293b; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
-            <span>📜 Recent Payment Requests (${recentTx.length})</span>
-            <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">Latest transactions</span>
+            <span>📜 Transaction Audit & Vendor Allocations (${recentTx.length})</span>
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">Live Client-to-Vendor History</span>
           </h4>
-          <div style="overflow-x: auto; max-height: 200px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <div style="overflow-x: auto; max-height: 280px; border: 1px solid #e2e8f0; border-radius: 8px;">
             <table class="custom-table" style="font-size: 0.8rem; margin: 0;">
               <thead>
                 <tr style="background: #f8fafc;">
-                  <th style="padding: 6px 10px;">Tx ID</th>
+                  <th style="padding: 6px 10px;">Tx ID & Date</th>
+                  <th style="padding: 6px 10px;">Assigned Vendor</th>
                   <th style="padding: 6px 10px;">Amount</th>
+                  <th style="padding: 6px 10px;">Vendor Tier</th>
+                  <th style="padding: 6px 10px;">Commission</th>
                   <th style="padding: 6px 10px;">Method</th>
                   <th style="padding: 6px 10px;">Status</th>
                   <th style="padding: 6px 10px;">UTR / Reference</th>
-                  <th style="padding: 6px 10px;">Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -2316,18 +2319,40 @@ async function openClientDetailModal(clientId) {
                   else if (t.status === 'REJECTED') badge = 'badge-danger';
                   else if (t.status === 'AWAITING_VENDOR_VERIFICATION') badge = 'badge-warning';
 
-                  const amt = (t.approvedAmount || t.amount || 0).toLocaleString('en-IN');
+                  const amt = (t.approvedAmount || t.submittedAmount || t.amount || 0).toLocaleString('en-IN');
                   const dt = t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-IN') : '--';
                   const utr = t.externalTransactionId || '<span style="color:#94a3b8;">--</span>';
+                  const vendorName = t.vendor?.name || 'Unassigned';
+                  const vendorEmail = t.vendor?.email || '--';
+                  const tierName = t.tierAtTransaction || 'Standard';
+                  const commRate = t.commissionPercentage !== undefined ? t.commissionPercentage : 0;
+                  const commAmt = (t.commissionAmount !== undefined ? t.commissionAmount : 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
                   return `
                     <tr>
-                      <td style="padding: 6px 10px; font-family: monospace; font-weight: 700;">${t.transactionId}</td>
-                      <td style="padding: 6px 10px; font-weight: 800; color: #059669;">₹${amt}</td>
-                      <td style="padding: 6px 10px;"><span class="badge ${t.paymentMethod === 'bank' ? 'badge-primary' : 'badge-info'}" style="font-size: 0.7rem; padding: 2px 5px;">${(t.paymentMethod || 'wallet').toUpperCase()}</span></td>
+                      <td style="padding: 6px 10px;">
+                        <code style="font-weight: 700; color: #4338ca;">${t.transactionId}</code><br>
+                        <small style="color: #64748b;">${dt}</small>
+                      </td>
+                      <td style="padding: 6px 10px;">
+                        <strong>${vendorName}</strong><br>
+                        <small style="color: #64748b;">${vendorEmail}</small>
+                      </td>
+                      <td style="padding: 6px 10px; font-weight: 800; color: #059669; font-size: 0.95rem;">₹${amt}</td>
+                      <td style="padding: 6px 10px;">
+                        <span class="badge ${getAdminTierBadgeClass('', tierName)}" style="font-size: 0.72rem; padding: 2px 6px;">${tierName}</span>
+                      </td>
+                      <td style="padding: 6px 10px;">
+                        <div style="font-size: 0.8rem;">
+                          <span style="font-weight: 700; color: #7e22ce;">${commRate}%</span><br>
+                          <strong style="color: #059669;">₹${commAmt}</strong>
+                        </div>
+                      </td>
+                      <td style="padding: 6px 10px;">
+                        <span class="badge ${t.paymentMethod === 'bank' ? 'badge-primary' : 'badge-info'}" style="font-size: 0.7rem; padding: 2px 5px;">${(t.paymentMethod || 'wallet').toUpperCase()}</span>
+                      </td>
                       <td style="padding: 6px 10px;"><span class="badge ${badge}" style="font-size: 0.7rem; padding: 2px 5px;">${t.status}</span></td>
                       <td style="padding: 6px 10px; font-family: monospace; font-size: 0.75rem;">${utr}</td>
-                      <td style="padding: 6px 10px; color: #64748b;">${dt}</td>
                     </tr>
                   `;
                 }).join('')}
@@ -2471,6 +2496,214 @@ async function openClientDetailModal(clientId) {
 
 function closeClientDetailModal() {
   document.getElementById('clientDetailModal').classList.add('hidden');
+}
+
+/**
+ * =============================================================================
+ * 6B. ALL CLIENT-TO-VENDOR TRANSACTIONS & COMMISSION LEDGER
+ * =============================================================================
+ */
+
+let clientTxCache = [];
+let clientTxCurrentPage = 1;
+let clientTxTotalPages = 1;
+let clientTxSearchTimeout = null;
+
+async function fetchAdminClientTransactions(page = 1) {
+  if (!adminToken) return;
+
+  clientTxCurrentPage = page;
+  const search = document.getElementById('clientTxSearchInput')?.value.trim() || '';
+  const status = document.getElementById('clientTxStatusFilter')?.value || '';
+  
+  const statusParam = status ? `&status=${encodeURIComponent(status)}` : '';
+  const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/clients/transactions?page=${clientTxCurrentPage}&limit=20${statusParam}${searchParam}`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success && data.data) {
+      clientTxCache = data.data.transactions || [];
+      const pagination = data.data.pagination || { page: 1, totalPages: 1, total: 0 };
+      const summary = data.data.summary || {};
+
+      clientTxTotalPages = pagination.totalPages || 1;
+      updateAdminClientTxStats(summary);
+      updateAdminClientTxPagination(pagination);
+      renderAdminClientTransactionsTable();
+    } else {
+      console.error('fetchAdminClientTransactions error:', data.message);
+    }
+  } catch (err) {
+    console.error('fetchAdminClientTransactions network error:', err);
+  }
+}
+
+function updateAdminClientTxStats(summary) {
+  const reqVol = summary.totalRequestedVolume || 0;
+  const appVol = summary.totalApprovedVolume || 0;
+  const commVol = summary.totalCommissionDistributed || 0;
+  const pendCount = summary.pendingCount || 0;
+
+  const elVol = document.getElementById('statClientTxVolume');
+  if (elVol) elVol.textContent = `₹${reqVol.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+  const elApp = document.getElementById('statClientTxApprovedVolume');
+  if (elApp) elApp.textContent = `₹${appVol.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+  const elComm = document.getElementById('statClientTxCommissionVolume');
+  if (elComm) elComm.textContent = `₹${commVol.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+  const elPend = document.getElementById('statClientTxPendingCount');
+  if (elPend) elPend.textContent = pendCount;
+}
+
+function updateAdminClientTxPagination(pagination) {
+  const page = pagination.page || 1;
+  const totalPages = pagination.totalPages || 1;
+  const total = pagination.total || 0;
+  const limit = pagination.limit || 20;
+
+  const start = total === 0 ? 0 : (page - 1) * limit + 1;
+  const end = Math.min(page * limit, total);
+
+  const infoEl = document.getElementById('clientTxPaginationInfo');
+  const indicatorEl = document.getElementById('clientTxPageIndicator');
+  const btnPrev = document.getElementById('btnClientTxPrevPage');
+  const btnNext = document.getElementById('btnClientTxNextPage');
+
+  if (infoEl) infoEl.textContent = `Showing ${start} to ${end} of ${total} transactions`;
+  if (indicatorEl) indicatorEl.textContent = `Page ${page} of ${totalPages}`;
+  if (btnPrev) btnPrev.disabled = page <= 1;
+  if (btnNext) btnNext.disabled = page >= totalPages;
+}
+
+function changeClientTxPage(delta) {
+  const targetPage = clientTxCurrentPage + delta;
+  if (targetPage >= 1 && targetPage <= clientTxTotalPages) {
+    fetchAdminClientTransactions(targetPage);
+  }
+}
+
+function handleClientTxSearch() {
+  clearTimeout(clientTxSearchTimeout);
+  clientTxSearchTimeout = setTimeout(() => {
+    fetchAdminClientTransactions(1);
+  }, 350);
+}
+
+function renderAdminClientTransactionsTable() {
+  const tbody = document.getElementById('adminClientTransactionsTbody');
+  if (!tbody) return;
+
+  if (clientTxCache.length > 0) {
+    tbody.innerHTML = clientTxCache.map(t => {
+      // Client info
+      const cl = t.clientId;
+      const clientName = cl ? `${cl.firstName || ''} ${cl.lastName || ''}`.trim() || 'Client' : 'Unknown Client';
+      const clientEmail = cl?.email || '--';
+      const clientMobile = cl?.mobile || '--';
+
+      // Vendor info
+      const v = t.vendorId;
+      const vendorName = v ? `${v.firstName || ''} ${v.lastName || ''}`.trim() || 'Vendor' : 'Unassigned';
+      const vendorEmail = v?.email || '--';
+      const vendorMobile = v?.mobileNumber || '--';
+
+      // Tier rank & commission
+      const tierName = t.tierAtTransaction || v?.currentTierDisplayName || v?.currentTier || 'Standard';
+      const commRate = t.commissionPercentage !== undefined && t.commissionPercentage !== null ? t.commissionPercentage : (v?.effectiveCommissionRate || 0);
+      const commAmt = t.commissionAmount !== undefined && t.commissionAmount !== null 
+        ? t.commissionAmount 
+        : Number((((t.approvedAmount || t.requestedAmount || 0) * commRate) / 100).toFixed(2));
+      const commAmtStr = commAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+      // Amount
+      const amt = (t.approvedAmount || t.submittedAmount || t.requestedAmount || t.allocatedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const dateStr = t.createdAt ? new Date(t.createdAt).toLocaleString('en-IN') : '--';
+
+      // Destination details
+      let destHtml = '';
+      const isBank = t.paymentMethod === 'bank';
+      const methodBadge = isBank
+        ? '<span class="badge badge-primary" style="font-size: 0.7rem; padding: 2px 5px;">🏦 BANK</span>'
+        : '<span class="badge badge-info" style="font-size: 0.7rem; padding: 2px 5px;">👛 WALLET / UPI</span>';
+
+      if (isBank) {
+        destHtml = `
+          <div>
+            ${methodBadge}<br>
+            <strong>${t.paymentDetails?.bankName || 'Bank'}</strong><br>
+            <small class="text-muted">A/C: <code>${t.paymentDetails?.accountNumber || '--'}</code></small><br>
+            <small class="text-muted">IFSC: <code>${t.paymentDetails?.ifscCode || '--'}</code></small>
+          </div>
+        `;
+      } else {
+        destHtml = `
+          <div>
+            ${methodBadge}<br>
+            <strong>${t.paymentDetails?.walletName || 'Wallet'}</strong><br>
+            <small class="text-muted">UPI: <code>${t.paymentDetails?.walletId || '--'}</code></small>
+          </div>
+        `;
+      }
+
+      // Status
+      let statusBadge = '';
+      if (t.status === 'APPROVED' || t.status === 'COMPLETED') {
+        statusBadge = '<span class="badge badge-success" style="padding: 4px 8px; font-weight: 700;">✅ Approved</span>';
+      } else if (t.status === 'AWAITING_VENDOR_VERIFICATION') {
+        statusBadge = '<span class="badge badge-warning" style="padding: 4px 8px; font-weight: 700;">⏳ Verifying</span>';
+      } else if (t.status === 'ASSIGNED' || t.status === 'ALLOCATED') {
+        statusBadge = '<span class="badge badge-info" style="padding: 4px 8px; font-weight: 700;">⚡ Assigned</span>';
+      } else if (t.status === 'REJECTED') {
+        statusBadge = '<span class="badge badge-danger" style="padding: 4px 8px; font-weight: 700;">❌ Rejected</span>';
+      } else {
+        statusBadge = `<span class="badge badge-default">${t.status}</span>`;
+      }
+
+      const utr = t.externalTransactionId 
+        ? `<code style="font-weight: 700; color: #1e293b;">${t.externalTransactionId}</code>`
+        : '<span class="text-muted">--</span>';
+
+      return `
+        <tr>
+          <td>
+            <code style="font-weight: 700; color: #4338ca;">${t.transactionId}</code><br>
+            <small class="text-muted">${dateStr}</small>
+          </td>
+          <td>
+            <strong>${clientName}</strong><br>
+            <small class="text-muted">${clientEmail}</small><br>
+            <small class="text-muted">📱 ${clientMobile}</small>
+          </td>
+          <td>
+            <strong>${vendorName}</strong><br>
+            <small class="text-muted">${vendorEmail}</small><br>
+            <small class="text-muted">📱 ${vendorMobile}</small>
+          </td>
+          <td style="font-weight: 800; font-size: 1.05rem; color: #059669;">₹${amt}</td>
+          <td>
+            <span class="badge ${getAdminTierBadgeClass('', tierName)}" style="font-weight: 700; padding: 4px 8px;">${tierName}</span>
+          </td>
+          <td>
+            <div style="font-size: 0.85rem;">
+              <span style="font-weight: 800; color: #7e22ce; font-size: 0.95rem;">${commRate}%</span><br>
+              <strong style="color: #059669;">₹${commAmtStr}</strong>
+            </div>
+          </td>
+          <td>${destHtml}</td>
+          <td>${statusBadge}</td>
+          <td>${utr}</td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No client transactions match the selected filter.</td></tr>';
+  }
 }
 
 /**

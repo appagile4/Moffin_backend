@@ -500,6 +500,18 @@ async function runTests() {
   if (typeof runStage2PaymentWorkflowTests === 'function') {
     await runStage2PaymentWorkflowTests();
   }
+
+  // Run Vendor Commission Withdrawals Test Suite
+  const { runVendorCommissionWithdrawalTests } = require('./vendorCommissionWithdrawalTests');
+  if (typeof runVendorCommissionWithdrawalTests === 'function') {
+    await runVendorCommissionWithdrawalTests();
+  }
+
+  // Run Client Bank Accounts & Wallets with QR Test Suite
+  const { runClientBankAndWalletTests } = require('./clientBankAndWalletTests');
+  if (typeof runClientBankAndWalletTests === 'function') {
+    await runClientBankAndWalletTests();
+  }
 }
 
 runTests().catch((err) => {

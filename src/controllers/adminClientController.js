@@ -224,7 +224,9 @@ const getAdminClientById = async (req, res) => {
         { clientId: client._id },
         { clientId: client._id.toString() }
       ]
-    }).sort({ createdAt: -1 });
+    })
+      .populate('vendorId', 'firstName lastName email mobileNumber currentTier currentTierDisplayName effectiveCommissionRate')
+      .sort({ createdAt: -1 });
 
     let totalApprovedAmount = 0;
     let totalApprovedCount = 0;
@@ -233,6 +235,7 @@ const getAdminClientById = async (req, res) => {
     let totalRejectedAmount = 0;
     let totalRejectedCount = 0;
     let totalRequestedAmount = 0;
+    let totalCommissionGenerated = 0;
 
     const approvedStatuses = ['APPROVED', 'COMPLETED'];
     const pendingStatuses = ['AWAITING_VENDOR_VERIFICATION', 'PAYMENT_SUBMITTED', 'ASSIGNED', 'ALLOCATED', 'PENDING'];
@@ -242,7 +245,10 @@ const getAdminClientById = async (req, res) => {
       const reqAmt = Number(tx.requestedAmount || tx.allocatedAmount || 0);
       const appAmt = Number(tx.approvedAmount || tx.submittedAmount || tx.allocatedAmount || reqAmt);
       const subAmt = Number(tx.submittedAmount || tx.allocatedAmount || reqAmt);
+      const commAmt = Number(tx.commissionAmount || 0);
+
       totalRequestedAmount += reqAmt;
+      totalCommissionGenerated += commAmt;
 
       if (approvedStatuses.includes(tx.status)) {
         totalApprovedAmount += appAmt;
@@ -269,22 +275,44 @@ const getAdminClientById = async (req, res) => {
       totalPendingAmount,
       totalPendingCount,
       totalRejectedAmount,
-      totalRejectedCount
+      totalRejectedCount,
+      totalCommissionGenerated
     };
 
-    const recentTransactions = allTx.slice(0, 10).map((t) => ({
-      transactionId: t.transactionId,
-      amount: t.requestedAmount || t.allocatedAmount,
-      approvedAmount: t.approvedAmount,
-      paymentMethod: t.paymentMethod,
-      status: t.status,
-      externalTransactionId: t.externalTransactionId,
-      createdAt: t.createdAt,
-      submittedAt: t.submittedAt,
-      approvedAt: t.approvedAt,
-      rejectedAt: t.rejectedAt,
-      rejectionReason: t.rejectionReason
-    }));
+    const recentTransactions = allTx.map((t) => {
+      const vendorName = t.vendorId ? `${t.vendorId.firstName || ''} ${t.vendorId.lastName || ''}`.trim() : 'Unassigned';
+      const vendorEmail = t.vendorId?.email || '--';
+      const vendorMobile = t.vendorId?.mobileNumber || '--';
+      const vendorTier = t.tierAtTransaction || t.vendorId?.currentTierDisplayName || t.vendorId?.currentTier || 'Standard';
+      const commRate = t.commissionPercentage !== undefined && t.commissionPercentage !== null ? t.commissionPercentage : (t.vendorId?.effectiveCommissionRate || 0);
+      const commAmt = t.commissionAmount !== undefined && t.commissionAmount !== null ? t.commissionAmount : Number((((t.approvedAmount || t.requestedAmount || 0) * commRate) / 100).toFixed(2));
+
+      return {
+        transactionId: t.transactionId,
+        amount: t.requestedAmount || t.allocatedAmount,
+        allocatedAmount: t.allocatedAmount,
+        submittedAmount: t.submittedAmount,
+        approvedAmount: t.approvedAmount,
+        paymentMethod: t.paymentMethod,
+        status: t.status,
+        vendor: {
+          id: t.vendorId?._id || t.vendorId,
+          name: vendorName,
+          email: vendorEmail,
+          mobile: vendorMobile
+        },
+        tierAtTransaction: vendorTier,
+        commissionPercentage: commRate,
+        commissionAmount: commAmt,
+        paymentDetails: t.paymentDetails,
+        externalTransactionId: t.externalTransactionId,
+        rejectionReason: t.rejectionReason,
+        createdAt: t.createdAt,
+        submittedAt: t.submittedAt,
+        approvedAt: t.approvedAt,
+        rejectedAt: t.rejectedAt
+      };
+    });
 
     return sendSuccess(res, 200, 'Client details retrieved successfully', {
       client,
@@ -402,9 +430,122 @@ const updateAdminClientStatus = async (req, res) => {
   }
 };
 
+// =============================================================================
+// 5. ADMIN ALL CLIENT TRANSACTIONS WITH VENDOR, TIER & COMMISSION BREAKDOWN
+// =============================================================================
+
+/**
+ * @desc    Get all client transactions across the platform with full vendor & tier details
+ * @route   GET /api/admin/clients/transactions (or /api/admin/client-transactions)
+ * @access  Private (Admin / SuperAdmin)
+ */
+const getAllClientTransactionsAdmin = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      search = '',
+      status = '',
+      clientId = '',
+      vendorId = '',
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const query = {};
+
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    if (clientId && isValidObjectId(clientId)) {
+      query.clientId = new mongoose.Types.ObjectId(clientId);
+    }
+
+    if (vendorId && isValidObjectId(vendorId)) {
+      query.vendorId = new mongoose.Types.ObjectId(vendorId);
+    }
+
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), 'i');
+      const searchConditions = [
+        { transactionId: regex },
+        { externalTransactionId: regex },
+        { tierAtTransaction: regex },
+        { clientReference: regex }
+      ];
+
+      // Also search in destination details
+      searchConditions.push({ 'paymentDetails.walletId': regex });
+      searchConditions.push({ 'paymentDetails.accountNumber': regex });
+      searchConditions.push({ 'paymentDetails.bankName': regex });
+
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchConditions }];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
+    }
+
+    const [transactions, total, summaryAggregation] = await Promise.all([
+      ClientTransaction.find(query)
+        .populate('clientId', 'firstName lastName email mobile platformUrl businessType')
+        .populate('vendorId', 'firstName lastName email mobileNumber currentTier currentTierDisplayName effectiveCommissionRate')
+        .sort({ [sortBy]: sortOrder.toLowerCase() === 'asc' ? 1 : -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      ClientTransaction.countDocuments(query),
+      ClientTransaction.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalRequestedVolume: { $sum: '$requestedAmount' },
+            totalApprovedVolume: { $sum: '$approvedAmount' },
+            totalCommissionDistributed: { $sum: '$commissionAmount' },
+            approvedCount: { $sum: { $cond: [{ $in: ['$status', ['APPROVED', 'COMPLETED']] }, 1, 0] } },
+            pendingCount: { $sum: { $cond: [{ $in: ['$status', ['AWAITING_VENDOR_VERIFICATION', 'PAYMENT_SUBMITTED', 'ASSIGNED', 'ALLOCATED', 'PENDING']] }, 1, 0] } },
+            rejectedCount: { $sum: { $cond: [{ $in: ['$status', ['REJECTED', 'FAILED']] }, 1, 0] } }
+          }
+        }
+      ])
+    ]);
+
+    const summary = (summaryAggregation && summaryAggregation[0]) || {
+      totalRequestedVolume: 0,
+      totalApprovedVolume: 0,
+      totalCommissionDistributed: 0,
+      approvedCount: 0,
+      pendingCount: 0,
+      rejectedCount: 0
+    };
+
+    return sendSuccess(res, 200, 'All client transactions retrieved successfully', {
+      transactions,
+      summary,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
+  } catch (error) {
+    console.error('getAllClientTransactionsAdmin Error:', error);
+    return sendError(res, 500, error.message || 'Error fetching client transactions');
+  }
+};
+
 module.exports = {
   getAdminClientStats,
   getAdminClients,
   getAdminClientById,
-  updateAdminClientStatus
+  updateAdminClientStatus,
+  getAllClientTransactionsAdmin
 };

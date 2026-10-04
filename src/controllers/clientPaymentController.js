@@ -80,7 +80,10 @@ const createPaymentRequest = async (req, res) => {
         amount: result.amount,
         paymentMethod: result.paymentMethod,
         status: result.status,
-        paymentDetails: result.paymentDetails
+        paymentDetails: result.paymentDetails,
+        tierAtTransaction: result.tierAtTransaction || null,
+        commissionPercentage: result.commissionPercentage !== undefined ? result.commissionPercentage : 0,
+        commissionAmount: result.commissionAmount !== undefined ? result.commissionAmount : 0
       }
     });
   } catch (error) {
@@ -173,7 +176,7 @@ const getClientPaymentRequests = async (req, res) => {
         .skip(skip)
         .limit(numLimit)
         .select(
-          'transactionId externalTransactionId requestedAmount allocatedAmount submittedAmount approvedAmount paymentMethod status allocationStatus paymentDetails rejectionReason submittedAt approvedAt createdAt'
+          'transactionId externalTransactionId requestedAmount allocatedAmount submittedAmount approvedAmount paymentMethod status allocationStatus paymentDetails tierAtTransaction commissionPercentage commissionAmount rejectionReason submittedAt approvedAt createdAt'
         ),
       ClientTransaction.countDocuments(query)
     ]);

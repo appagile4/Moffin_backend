@@ -438,6 +438,7 @@ const vendorApproveWithdrawal = async (withdrawalId, vendorId, ipAddress = null)
     // Update Withdrawal Document
     withdrawal.status = 'APPROVED';
     withdrawal.vendorConfirmation = {
+      isApproved: true,
       confirmedAt: new Date(),
       rejectionReason: null
     };

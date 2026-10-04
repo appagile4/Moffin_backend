@@ -1,6 +1,87 @@
 const mongoose = require('mongoose');
 
 /**
+ * Bank Account Subdocument Schema for Clients
+ */
+const clientBankAccountSchema = new mongoose.Schema(
+  {
+    accountNumber: {
+      type: String,
+      required: [true, 'Bank account number is required'],
+      trim: true
+    },
+    ifscCode: {
+      type: String,
+      required: [true, 'IFSC code is required'],
+      uppercase: true,
+      trim: true
+    },
+    bankName: {
+      type: String,
+      required: [true, 'Bank name is required'],
+      trim: true
+    },
+    accountHolderName: {
+      type: String,
+      required: [true, 'Account holder name is required'],
+      trim: true
+    },
+    branchName: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    isDefault: {
+      type: Boolean,
+      default: false
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  },
+  {
+    _id: true,
+    timestamps: true
+  }
+);
+
+/**
+ * Wallet Subdocument Schema for Clients (with QR Code)
+ */
+const clientWalletSchema = new mongoose.Schema(
+  {
+    walletName: {
+      type: String,
+      required: [true, 'Wallet name is required'],
+      trim: true
+    },
+    walletId: {
+      type: String,
+      required: [true, 'Wallet ID / UPI ID is required'],
+      trim: true
+    },
+    qrCode: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    isDefault: {
+      type: Boolean,
+      default: false
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  },
+  {
+    _id: true,
+    timestamps: true
+  }
+);
+
+/**
  * Client Main Schema
  */
 const clientSchema = new mongoose.Schema(
@@ -54,6 +135,16 @@ const clientSchema = new mongoose.Schema(
     },
     telegramIds: {
       type: [String],
+      default: []
+    },
+
+    // 1B. Client Bank Accounts & Wallets with QR
+    bankAccounts: {
+      type: [clientBankAccountSchema],
+      default: []
+    },
+    wallets: {
+      type: [clientWalletSchema],
       default: []
     },
 

@@ -53,8 +53,10 @@ async function runVendorCommissionWithdrawalTests() {
   console.log('🧪 RUNNING VENDOR COMMISSION WITHDRAWALS & TOTAL WITHDRAW STATS TESTS');
   console.log('========================================================================\n');
 
-  const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/moffin_db';
-  await mongoose.connect(mongoUri);
+  if (mongoose.connection.readyState === 0) {
+    const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/moffin_db';
+    await mongoose.connect(mongoUri);
+  }
 
   try {
     // 0. Seed tiers if needed
@@ -334,8 +336,14 @@ async function runVendorCommissionWithdrawalTests() {
   } catch (error) {
     console.error('Test Suite Error:', error);
   } finally {
-    await mongoose.disconnect();
+    if (require.main === module) {
+      await mongoose.disconnect();
+    }
   }
 }
 
-runVendorCommissionWithdrawalTests();
+module.exports = { runVendorCommissionWithdrawalTests };
+
+if (require.main === module) {
+  runVendorCommissionWithdrawalTests();
+}

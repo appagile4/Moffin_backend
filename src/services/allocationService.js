@@ -335,6 +335,23 @@ const createClientPaymentRequest = async ({
       paymentMethod: normalizedMethod,
       paymentDetails: selectedPaymentDetails,
       allocatedVendorId: vendor._id,
+      vendor: {
+        id: vendor._id,
+        _id: vendor._id,
+        firstName: vendor.firstName,
+        lastName: vendor.lastName,
+        email: vendor.email
+      },
+      transaction: {
+        transactionId: clientTx.transactionId,
+        allocatedAmount: numAmount,
+        tierAtTransaction: tierInfo.tierName,
+        commissionPercentage: tierInfo.commissionPercentage,
+        commissionAmount
+      },
+      tierAtTransaction: tierInfo.tierName,
+      commissionPercentage: tierInfo.commissionPercentage,
+      commissionAmount,
       createdAt: clientTx.createdAt
     };
 

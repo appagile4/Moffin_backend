@@ -330,189 +330,255 @@
           <div style="font-size: 1.8rem; font-weight: 800; color: #1e293b; margin: 6px 0;" id="clientTotalTxCount">0</div>
           <div style="font-size: 0.8rem; color: #64748b;">All completed & pending payments</div>
         </div>
-      </div>
 
-      <!-- 2. PAYMENT REQUEST & FCFS VENDOR ALLOCATION SECTION -->
-      <div class="card mb-3">
-        <div class="card-header flex-between">
-          <div>
-            <h2>💳 Create Payment Request</h2>
-            <p class="subtitle">Automatic FCFS allocation to verified vendors matching your payment method and amount</p>
-          </div>
-          <span class="badge badge-success">⚡ Live FCFS Queue Engine</span>
-        </div>
-
-        <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.06), rgba(99, 102, 241, 0.02)); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.88rem; line-height: 1.5; color: #4338ca;">
-          <strong>💡 How it works:</strong> Select your preferred payment method and enter the amount. The system will atomically find the first eligible verified vendor with available balance from the FCFS priority queue and return their payment details.
-        </div>
-
-        <form id="clientPaymentRequestForm" onsubmit="handleCreatePaymentRequest(event)">
-          <!-- Payment Method Selection -->
-          <div class="form-group mb-3">
-            <label style="font-weight: 700; margin-bottom: 8px; display: block;">1. Select Payment Method *</label>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-              <label style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s;" id="methodWalletLabel">
-                <input type="radio" name="paymentMethod" value="wallet" checked onchange="updateMethodUI()" style="accent-color: #6366f1; width: 18px; height: 18px;" />
-                <div>
-                  <div style="font-weight: 700; color: #1e293b;">💳 Wallet / UPI</div>
-                  <div style="font-size: 0.8rem; color: #64748b;">Pay via UPI, PayTM, PhonePe, GPay</div>
-                </div>
-              </label>
-
-              <label style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s;" id="methodBankLabel">
-                <input type="radio" name="paymentMethod" value="bank" onchange="updateMethodUI()" style="accent-color: #6366f1; width: 18px; height: 18px;" />
-                <div>
-                  <div style="font-weight: 700; color: #1e293b;">🏦 Bank Transfer</div>
-                  <div style="font-size: 0.8rem; color: #64748b;">IMPS / NEFT / RTGS Bank Transfer</div>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <!-- Amount Input -->
-          <div class="form-group mb-3">
-            <label style="font-weight: 700; margin-bottom: 8px; display: block;">2. Payment Amount (INR ₹) *</label>
-            <div style="position: relative;">
-              <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 1.1rem; font-weight: 700; color: #64748b;">₹</span>
-              <input
-                type="number"
-                id="paymentRequestAmount"
-                required
-                min="1"
-                step="any"
-                placeholder="e.g. 15000"
-                style="padding-left: 32px; font-size: 1.1rem; font-weight: 700;"
-              />
-            </div>
-            <!-- Quick Amount Presets -->
-            <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
-              <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(1000)">+ ₹1,000</button>
-              <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(5000)">+ ₹5,000</button>
-              <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(10000)">+ ₹10,000</button>
-              <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(25000)">+ ₹25,000</button>
-              <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(50000)">+ ₹50,000</button>
-            </div>
-          </div>
-
-          <!-- Client Reference (Optional) -->
-          <div class="form-group mb-3">
-            <label>Order / Reference ID (Optional)</label>
-            <input type="text" id="paymentRequestReference" placeholder="e.g. ORDER-98231" />
-          </div>
-
-          <button type="submit" id="btnSubmitPaymentRequest" class="btn btn-primary w-full py-3" style="font-size: 1.05rem; font-weight: 700;">
-            🚀 Submit Payment Request & Allocate Vendor
-          </button>
-        </form>
-      </div>
-
-      <!-- 3. ASSIGNED PAYMENT DESTINATION RESULT CARD -->
-      <div id="assignedDestinationCard" class="card mb-3 hidden" style="border: 2px solid #10b981; background: linear-gradient(180deg, #f0fdf4, #ffffff);">
-        <div class="card-header flex-between" style="border-bottom: 1px solid rgba(16,185,129,0.2);">
-          <div>
-            <h3 style="color: #065f46; display: flex; align-items: center; gap: 8px;">
-              ✅ Step 1 Complete: Vendor Assigned Successfully
-            </h3>
-            <p class="subtitle" style="color: #047857;">Please transfer funds to the account below and submit your payment reference</p>
-          </div>
-          <span class="badge" style="background: #10b981; color: white; font-weight: 700;" id="assignedStatusBadge">ASSIGNED</span>
-        </div>
-
-        <div style="padding: 16px 0;">
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
-            <div class="info-card">
-              <span class="label">Transaction ID</span>
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                <span class="value" id="assignedTxId" style="font-family: monospace; font-weight: 700; color: #1e293b;">--</span>
-                <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 6px; font-size: 0.75rem;" onclick="copyToClipboard(document.getElementById('assignedTxId').innerText)">📋</button>
-              </div>
-            </div>
-            <div class="info-card">
-              <span class="label">Requested Amount</span>
-              <span class="value" id="assignedAmount" style="font-size: 1.2rem; font-weight: 800; color: #059669;">₹--</span>
-            </div>
-            <div class="info-card">
-              <span class="label">Payment Method</span>
-              <span class="value" id="assignedMethod">--</span>
-            </div>
-          </div>
-
-          <!-- Dynamic Payment Details Box -->
-          <div id="assignedDetailsContainer" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 16px;">
-            <!-- Dynamically populated with bank or wallet specifics -->
-          </div>
-
-          <!-- Step 2: Payment Proof / UTR Submission Form -->
-          <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 18px; margin-bottom: 16px;">
-            <h4 style="color: #1e293b; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-              📝 Step 2: Confirm Payment Submission
-            </h4>
-            <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 14px;">
-              After completing the transfer in your payment app, enter the external reference number (UTR/TxID) below. The assigned vendor will manually verify and approve the payment to credit your balance.
-            </p>
-
-            <form id="clientSubmitPaymentForm" onsubmit="handleClientPaymentSubmission(event)">
-              <input type="hidden" id="submitPaymentRequestId" />
-              <input type="hidden" id="submitAssignedMethod" />
-              <input type="hidden" id="submitAssignedWalletId" />
-              <input type="hidden" id="submitAssignedBankId" />
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Amount Paid (₹) *</label>
-                  <input type="number" id="submitPaymentAmount" required min="1" step="any" readonly style="background: #e2e8f0; font-weight: 700; color: #0f172a;" />
-                </div>
-                <div class="form-group">
-                  <label>External Transaction ID (UTR / Reference Number) *</label>
-                  <input type="text" id="submitExternalTxId" required placeholder="e.g. UPI123456789 or UTR99887766" style="font-family: monospace; font-weight: 600;" />
-                </div>
-              </div>
-
-              <div id="submitDetailsSummaryBox" style="margin-bottom: 12px; font-size: 0.85rem; color: #475569;">
-                <!-- Wallet ID or Bank Account matching info -->
-              </div>
-
-              <button type="submit" id="btnSubmitPaymentProof" class="btn btn-success w-full py-3" style="font-size: 1rem; font-weight: 700;">
-                ✅ Submit Payment for Vendor Verification
-              </button>
-            </form>
-          </div>
-
-          <div style="display: flex; gap: 8px; justify-content: flex-end;">
-            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('assignedDestinationCard').classList.add('hidden')">✕ Close</button>
-            <button class="btn btn-sm btn-primary" onclick="fetchClientPaymentRequests(); fetchClientBalance();">🔄 Refresh Status</button>
-          </div>
+        <div class="card" style="padding: 20px;">
+          <div style="font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Linked Payment Accounts</div>
+          <div style="font-size: 1.8rem; font-weight: 800; color: #4338ca; margin: 6px 0;" id="clientTotalAccountsCount">0 Banks / 0 Wallets</div>
+          <div style="font-size: 0.8rem; color: #64748b;">Saved bank accounts and UPI / QR wallets</div>
         </div>
       </div>
 
-      <!-- 4. RECENT PAYMENT REQUESTS TABLE -->
-      <div class="card mb-3">
-        <div class="card-header flex-between">
-          <div>
-            <h3>📋 My Payment Requests & Allocations</h3>
-            <p class="subtitle">History of payment requests processed by the FCFS engine</p>
+      <!-- CLIENT TABS NAVIGATION -->
+      <div class="tabs mb-3" style="display: flex; gap: 8px; border-bottom: 2px solid var(--border); padding-bottom: 8px;">
+        <button class="tab-btn active" id="tabBtnPayment" onclick="switchClientTab('paymentTab', event)" style="font-weight: 700;">
+          💳 Make Payment Request (FCFS)
+        </button>
+        <button class="tab-btn" id="tabBtnAccounts" onclick="switchClientTab('accountsTab', event)" style="font-weight: 700;">
+          🏦 My Bank Accounts & Wallets with QR
+        </button>
+        <button class="tab-btn" id="tabBtnHistory" onclick="switchClientTab('historyTab', event)" style="font-weight: 700;">
+          📋 Payment Requests History
+        </button>
+      </div>
+
+      <!-- TAB 1: PAYMENT REQUEST & FCFS VENDOR ALLOCATION -->
+      <div id="paymentTab" class="client-tab-content">
+        <div class="card mb-3">
+          <div class="card-header flex-between">
+            <div>
+              <h2>💳 Create Payment Request</h2>
+              <p class="subtitle">Automatic FCFS allocation to verified vendors matching your payment method and amount</p>
+            </div>
+            <span class="badge badge-success">⚡ Live FCFS Queue Engine</span>
           </div>
-          <button class="btn btn-sm btn-secondary" onclick="fetchClientPaymentRequests()">🔄 Refresh</button>
+
+          <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.06), rgba(99, 102, 241, 0.02)); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.88rem; line-height: 1.5; color: #4338ca;">
+            <strong>💡 How it works:</strong> Select your preferred payment method and enter the amount. The system will atomically find the first eligible verified vendor with available balance from the FCFS priority queue and return their payment details.
+          </div>
+
+          <form id="clientPaymentRequestForm" onsubmit="handleCreatePaymentRequest(event)">
+            <!-- Payment Method Selection -->
+            <div class="form-group mb-3">
+              <label style="font-weight: 700; margin-bottom: 8px; display: block;">1. Select Payment Method *</label>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s;" id="methodWalletLabel">
+                  <input type="radio" name="paymentMethod" value="wallet" checked onchange="updateMethodUI()" style="accent-color: #6366f1; width: 18px; height: 18px;" />
+                  <div>
+                    <div style="font-weight: 700; color: #1e293b;">💳 Wallet / UPI</div>
+                    <div style="font-size: 0.8rem; color: #64748b;">Pay via UPI, PayTM, PhonePe, GPay</div>
+                  </div>
+                </label>
+
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s;" id="methodBankLabel">
+                  <input type="radio" name="paymentMethod" value="bank" onchange="updateMethodUI()" style="accent-color: #6366f1; width: 18px; height: 18px;" />
+                  <div>
+                    <div style="font-weight: 700; color: #1e293b;">🏦 Bank Transfer</div>
+                    <div style="font-size: 0.8rem; color: #64748b;">IMPS / NEFT / RTGS Bank Transfer</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Amount Input -->
+            <div class="form-group mb-3">
+              <label style="font-weight: 700; margin-bottom: 8px; display: block;">2. Payment Amount (INR ₹) *</label>
+              <div style="position: relative;">
+                <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 1.1rem; font-weight: 700; color: #64748b;">₹</span>
+                <input
+                  type="number"
+                  id="paymentRequestAmount"
+                  required
+                  min="1"
+                  step="any"
+                  placeholder="e.g. 15000"
+                  style="padding-left: 32px; font-size: 1.1rem; font-weight: 700;"
+                />
+              </div>
+              <!-- Quick Amount Presets -->
+              <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(1000)">+ ₹1,000</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(5000)">+ ₹5,000</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(10000)">+ ₹10,000</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(25000)">+ ₹25,000</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="setQuickAmount(50000)">+ ₹50,000</button>
+              </div>
+            </div>
+
+            <!-- Client Reference (Optional) -->
+            <div class="form-group mb-3">
+              <label>Order / Reference ID (Optional)</label>
+              <input type="text" id="paymentRequestReference" placeholder="e.g. ORDER-98231" />
+            </div>
+
+            <button type="submit" id="btnSubmitPaymentRequest" class="btn btn-primary w-full py-3" style="font-size: 1.05rem; font-weight: 700;">
+              🚀 Submit Payment Request & Allocate Vendor
+            </button>
+          </form>
         </div>
 
-        <div style="overflow-x: auto;">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Transaction ID</th>
-                <th>Amount</th>
-                <th>Method</th>
-                <th>Assigned Details</th>
-                <th>Status</th>
-                <th>Created At</th>
-              </tr>
-            </thead>
-            <tbody id="clientRequestsTbody">
-              <tr>
-                <td colspan="6" class="empty-state">No payment requests created yet.</td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- ASSIGNED PAYMENT DESTINATION RESULT CARD -->
+        <div id="assignedDestinationCard" class="card mb-3 hidden" style="border: 2px solid #10b981; background: linear-gradient(180deg, #f0fdf4, #ffffff);">
+          <div class="card-header flex-between" style="border-bottom: 1px solid rgba(16,185,129,0.2);">
+            <div>
+              <h3 style="color: #065f46; display: flex; align-items: center; gap: 8px;">
+                ✅ Step 1 Complete: Vendor Assigned Successfully
+              </h3>
+              <p class="subtitle" style="color: #047857;">Please transfer funds to the account below and submit your payment reference</p>
+            </div>
+            <span class="badge" style="background: #10b981; color: white; font-weight: 700;" id="assignedStatusBadge">ASSIGNED</span>
+          </div>
+
+          <div style="padding: 16px 0;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+              <div class="info-card">
+                <span class="label">Transaction ID</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <span class="value" id="assignedTxId" style="font-family: monospace; font-weight: 700; color: #1e293b;">--</span>
+                  <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 6px; font-size: 0.75rem;" onclick="copyToClipboard(document.getElementById('assignedTxId').innerText)">📋</button>
+                </div>
+              </div>
+              <div class="info-card">
+                <span class="label">Requested Amount</span>
+                <span class="value" id="assignedAmount" style="font-size: 1.2rem; font-weight: 800; color: #059669;">₹--</span>
+              </div>
+              <div class="info-card">
+                <span class="label">Payment Method</span>
+                <span class="value" id="assignedMethod">--</span>
+              </div>
+            </div>
+
+            <!-- Dynamic Payment Details Box -->
+            <div id="assignedDetailsContainer" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+              <!-- Dynamically populated with bank or wallet specifics -->
+            </div>
+
+            <!-- Step 2: Payment Proof / UTR Submission Form -->
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 18px; margin-bottom: 16px;">
+              <h4 style="color: #1e293b; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                📝 Step 2: Confirm Payment Submission
+              </h4>
+              <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 14px;">
+                After completing the transfer in your payment app, enter the external reference number (UTR/TxID) below. The assigned vendor will manually verify and approve the payment to credit your balance.
+              </p>
+
+              <form id="clientSubmitPaymentForm" onsubmit="handleClientPaymentSubmission(event)">
+                <input type="hidden" id="submitPaymentRequestId" />
+                <input type="hidden" id="submitAssignedMethod" />
+                <input type="hidden" id="submitAssignedWalletId" />
+                <input type="hidden" id="submitAssignedBankId" />
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Amount Paid (₹) *</label>
+                    <input type="number" id="submitPaymentAmount" required min="1" step="any" readonly style="background: #e2e8f0; font-weight: 700; color: #0f172a;" />
+                  </div>
+                  <div class="form-group">
+                    <label>External Transaction ID (UTR / Reference Number) *</label>
+                    <input type="text" id="submitExternalTxId" required placeholder="e.g. UPI123456789 or UTR99887766" style="font-family: monospace; font-weight: 600;" />
+                  </div>
+                </div>
+
+                <div id="submitDetailsSummaryBox" style="margin-bottom: 12px; font-size: 0.85rem; color: #475569;">
+                  <!-- Wallet ID or Bank Account matching info -->
+                </div>
+
+                <button type="submit" id="btnSubmitPaymentProof" class="btn btn-success w-full py-3" style="font-size: 1rem; font-weight: 700;">
+                  ✅ Submit Payment for Vendor Verification
+                </button>
+              </form>
+            </div>
+
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+              <button class="btn btn-sm btn-secondary" onclick="document.getElementById('assignedDestinationCard').classList.add('hidden')">✕ Close</button>
+              <button class="btn btn-sm btn-primary" onclick="fetchClientPaymentRequests(); fetchClientBalance();">🔄 Refresh Status</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: CLIENT SAVED BANK ACCOUNTS & WALLETS WITH QR -->
+      <div id="accountsTab" class="client-tab-content hidden">
+        <div class="grid-2">
+          
+          <!-- Column 1: Bank Accounts -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>🏦 My Bank Accounts</h3>
+                <p class="subtitle">Manage your linked receiving & settlement bank accounts</p>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-sm btn-success" onclick="openAddClientBankModal()">➕ Add Bank</button>
+                <button class="btn btn-sm btn-secondary" onclick="fetchClientBankAccounts()">🔄</button>
+              </div>
+            </div>
+
+            <div id="clientBankAccountsList" style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
+              <p class="empty-state">Loading bank accounts...</p>
+            </div>
+          </div>
+
+          <!-- Column 2: Wallets & UPI with QR Code -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>👛 My Wallets & QR Codes</h3>
+                <p class="subtitle">Manage UPI VPAs, Wallets, and QR code payment destinations</p>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-sm btn-success" onclick="openAddClientWalletModal()">➕ Add Wallet / QR</button>
+                <button class="btn btn-sm btn-secondary" onclick="fetchClientWallets()">🔄</button>
+              </div>
+            </div>
+
+            <div id="clientWalletsList" style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
+              <p class="empty-state">Loading wallets & QR codes...</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB 3: PAYMENT REQUESTS HISTORY -->
+      <div id="historyTab" class="client-tab-content hidden">
+        <div class="card mb-3">
+          <div class="card-header flex-between">
+            <div>
+              <h3>📋 My Payment Requests & Allocations</h3>
+              <p class="subtitle">Comprehensive history of all client payment requests processed by the FCFS engine</p>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="fetchClientPaymentRequests()">🔄 Refresh</button>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Transaction ID</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Assigned Details</th>
+                  <th>Status</th>
+                  <th>Created At</th>
+                </tr>
+              </thead>
+              <tbody id="clientRequestsTbody">
+                <tr>
+                  <td colspan="6" class="empty-state">No payment requests created yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -590,6 +656,121 @@
           <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT CLIENT BANK ACCOUNT MODAL -->
+  <div id="clientBankModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 550px;">
+      <div class="card-header flex-between">
+        <h3 id="clientBankModalTitle">🏦 Add Bank Account</h3>
+        <button type="button" class="btn-close" onclick="closeClientBankModal()">✕</button>
+      </div>
+
+      <form id="clientBankForm" onsubmit="handleSaveClientBankAccount(event)">
+        <input type="hidden" id="bankModalId" />
+
+        <div class="form-group">
+          <label>Bank Name *</label>
+          <input type="text" id="bankFormBankName" required placeholder="e.g. HDFC Bank, ICICI Bank, SBI" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Account Number *</label>
+            <input type="text" id="bankFormAccountNumber" required placeholder="e.g. 50100234567890" />
+          </div>
+          <div class="form-group">
+            <label>IFSC Code *</label>
+            <input type="text" id="bankFormIfscCode" required placeholder="e.g. HDFC0001234" style="text-transform: uppercase;" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Account Holder Name *</label>
+          <input type="text" id="bankFormHolderName" required placeholder="e.g. John Doe / Business Name" />
+        </div>
+
+        <div class="form-group">
+          <label>Branch Name (Optional)</label>
+          <input type="text" id="bankFormBranchName" placeholder="e.g. Connaught Place, New Delhi" />
+        </div>
+
+        <div class="form-check" style="margin-top: 10px; margin-bottom: 16px;">
+          <input type="checkbox" id="bankFormIsDefault" style="width: 18px; height: 18px;" />
+          <label for="bankFormIsDefault" style="font-weight: 600; cursor: pointer;">Set as Primary / Default Bank Account</label>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeClientBankModal()">Cancel</button>
+          <button type="submit" id="btnSaveClientBank" class="btn btn-primary">💾 Save Bank Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT CLIENT WALLET & QR CODE MODAL -->
+  <div id="clientWalletModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 550px;">
+      <div class="card-header flex-between">
+        <h3 id="clientWalletModalTitle">👛 Add Wallet / UPI with QR</h3>
+        <button type="button" class="btn-close" onclick="closeClientWalletModal()">✕</button>
+      </div>
+
+      <form id="clientWalletForm" onsubmit="handleSaveClientWallet(event)">
+        <input type="hidden" id="walletModalId" />
+
+        <div class="form-group">
+          <label>Wallet / Provider Name *</label>
+          <input type="text" id="walletFormName" required placeholder="e.g. Google Pay, PhonePe, Paytm, BHIM UPI" />
+        </div>
+
+        <div class="form-group">
+          <label>UPI ID / VPA / Wallet Address *</label>
+          <input type="text" id="walletFormId" required placeholder="e.g. username@okhdfcbank or 9876543210@paytm" />
+        </div>
+
+        <div class="form-group">
+          <label>Upload QR Code Image (PNG, JPG, WebP)</label>
+          <input type="file" id="walletFormQrFile" accept="image/*" onchange="previewWalletQrImage(event)" />
+          <small class="text-muted">Upload your UPI QR code so vendors/admin can scan and pay seamlessly.</small>
+          
+          <div id="walletQrPreviewBox" style="margin-top: 10px; display: none; text-align: center; padding: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;">
+            <img id="walletQrPreviewImg" src="" alt="QR Preview" style="max-height: 160px; max-width: 100%; object-fit: contain; border-radius: 6px;" />
+            <div id="walletQrCurrentLabel" style="font-size: 0.75rem; color: #64748b; margin-top: 4px;"></div>
+          </div>
+        </div>
+
+        <div class="form-check" style="margin-top: 10px; margin-bottom: 16px;">
+          <input type="checkbox" id="walletFormIsDefault" style="width: 18px; height: 18px;" />
+          <label for="walletFormIsDefault" style="font-weight: 600; cursor: pointer;">Set as Primary / Default Wallet</label>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeClientWalletModal()">Cancel</button>
+          <button type="submit" id="btnSaveClientWallet" class="btn btn-primary">💾 Save Wallet & QR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- QR CODE FULL PREVIEW MODAL -->
+  <div id="clientQrViewerModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 450px; text-align: center;">
+      <div class="card-header flex-between">
+        <h3 id="qrViewerTitle">🔍 UPI QR Code Preview</h3>
+        <button type="button" class="btn-close" onclick="closeClientQrViewerModal()">✕</button>
+      </div>
+
+      <div style="padding: 16px; background: #f8fafc; border-radius: 8px; margin-bottom: 16px;">
+        <img id="qrViewerImage" src="" alt="UPI QR Code" style="max-width: 100%; max-height: 320px; object-fit: contain; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; padding: 8px;" />
+        <div id="qrViewerSubtitle" style="margin-top: 10px; font-weight: 700; color: #1e293b; font-size: 0.95rem;"></div>
+      </div>
+
+      <div style="display: flex; gap: 8px; justify-content: center;">
+        <a id="qrViewerDownloadLink" href="" target="_blank" download="client_qr.png" class="btn btn-sm btn-primary">⬇️ Open Original</a>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="closeClientQrViewerModal()">Close</button>
+      </div>
     </div>
   </div>
 
