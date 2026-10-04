@@ -89,6 +89,10 @@ function switchTab(tabId, btnEl = null) {
   }
 
   if (tabId === 'walletTab') fetchVendorWalletAndLedger();
+  if (tabId === 'withdrawalsTab') {
+    fetchVendorWithdrawals();
+    populateWithdrawDestinationOptions();
+  }
   if (tabId === 'tiersTab') {
     fetchVendorTierProgress().then(() => {
       fetchVendorTiersList();
@@ -348,6 +352,17 @@ async function fetchVendorOverviewStats(timeframe = 'month') {
       if (depositEl) depositEl.textContent = `₹ ${(s.totalDeposit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       if (withdrawEl) withdrawEl.textContent = `₹ ${(s.totalWithdraw || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       if (commEl) commEl.textContent = `₹ ${(s.totalCommission || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+      // Update Header Badges
+      const commBadge = document.getElementById('dashCommissionBalanceBadge');
+      if (commBadge) {
+        commBadge.textContent = `₹ ${(s.commissionBalance !== undefined ? s.commissionBalance : (s.totalCommissionEarned || s.totalCommission || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
+
+      const walletBadge = document.getElementById('dashWalletBalanceBadge');
+      if (walletBadge) {
+        walletBadge.textContent = `₹ ${(s.availableBalance !== undefined ? s.availableBalance : (s.walletBalance || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
     }
   } catch (err) {
     console.error('fetchVendorOverviewStats error:', err);
@@ -1648,5 +1663,377 @@ async function handleConfirmVendorReject(event) {
     btn.textContent = 'Confirm Rejection';
   }
 }
+
+/**
+ * 14. Commission Withdrawal Management
+ */
+let cachedWithdrawals = [];
+
+function handleWithdrawDestTypeChange() {
+  const type = document.getElementById('withdrawDestType')?.value || 'bank';
+  const source = document.querySelector('input[name="withdrawDestSource"]:checked')?.value || 'linked';
+
+  const linkedBankGroup = document.getElementById('withdrawLinkedBankGroup');
+  const linkedWalletGroup = document.getElementById('withdrawLinkedWalletGroup');
+  const manualBankGroup = document.getElementById('withdrawManualBankGroup');
+  const manualWalletGroup = document.getElementById('withdrawManualWalletGroup');
+
+  if (source === 'linked') {
+    if (type === 'bank') {
+      if (linkedBankGroup) linkedBankGroup.classList.remove('hidden');
+      if (linkedWalletGroup) linkedWalletGroup.classList.add('hidden');
+    } else {
+      if (linkedBankGroup) linkedBankGroup.classList.add('hidden');
+      if (linkedWalletGroup) linkedWalletGroup.classList.remove('hidden');
+    }
+    if (manualBankGroup) manualBankGroup.classList.add('hidden');
+    if (manualWalletGroup) manualWalletGroup.classList.add('hidden');
+  } else {
+    if (linkedBankGroup) linkedBankGroup.classList.add('hidden');
+    if (linkedWalletGroup) linkedWalletGroup.classList.add('hidden');
+    if (type === 'bank') {
+      if (manualBankGroup) manualBankGroup.classList.remove('hidden');
+      if (manualWalletGroup) manualWalletGroup.classList.add('hidden');
+    } else {
+      if (manualBankGroup) manualBankGroup.classList.add('hidden');
+      if (manualWalletGroup) manualWalletGroup.classList.remove('hidden');
+    }
+  }
+}
+
+function handleWithdrawSourceChange() {
+  handleWithdrawDestTypeChange();
+}
+
+function populateWithdrawDestinationOptions() {
+  const bankSelect = document.getElementById('withdrawLinkedBankSelect');
+  const walletSelect = document.getElementById('withdrawLinkedWalletSelect');
+
+  if (bankSelect) {
+    if (cachedBankAccounts.length > 0) {
+      bankSelect.innerHTML = cachedBankAccounts.map(b => `
+        <option value="${b._id}" ${b.isDefault ? 'selected' : ''}>
+          🏦 ${b.bankName} - A/C: ${b.accountNumber} (${b.accountHolderName}) ${b.isDefault ? '★ Default' : ''}
+        </option>
+      `).join('');
+    } else {
+      bankSelect.innerHTML = '<option value="">(No bank accounts linked - please add one or select Manual)</option>';
+    }
+  }
+
+  if (walletSelect) {
+    if (cachedWallets.length > 0) {
+      walletSelect.innerHTML = cachedWallets.map(w => `
+        <option value="${w._id}" ${w.isDefault ? 'selected' : ''}>
+          👛 ${w.walletName} - ${w.walletId} ${w.isDefault ? '★ Default' : ''}
+        </option>
+      `).join('');
+    } else {
+      walletSelect.innerHTML = '<option value="">(No wallets linked - please add one or select Manual)</option>';
+    }
+  }
+
+  handleWithdrawDestTypeChange();
+}
+
+async function handleCreateWithdrawal(event) {
+  event.preventDefault();
+
+  const amount = Number(document.getElementById('withdrawAmount').value);
+  if (!amount || isNaN(amount) || amount < 25000) {
+    showToast('Minimum withdrawal amount is ₹25,000', 'error');
+    return;
+  }
+
+  const destinationType = document.getElementById('withdrawDestType').value;
+  const source = document.querySelector('input[name="withdrawDestSource"]:checked')?.value || 'linked';
+  const isManualDestination = source === 'manual';
+  const notes = document.getElementById('withdrawNotes').value.trim();
+
+  let payload = {
+    amount,
+    destinationType,
+    isManualDestination,
+    notes
+  };
+
+  if (!isManualDestination) {
+    const selectedAccountId = destinationType === 'bank'
+      ? document.getElementById('withdrawLinkedBankSelect').value
+      : document.getElementById('withdrawLinkedWalletSelect').value;
+
+    if (!selectedAccountId) {
+      showToast(`Please select a valid linked ${destinationType} account or switch to manual input`, 'error');
+      return;
+    }
+    payload.selectedAccountId = selectedAccountId;
+  } else {
+    if (destinationType === 'bank') {
+      const bankName = document.getElementById('withdrawManualBankName').value.trim();
+      const accountNumber = document.getElementById('withdrawManualAccountNo').value.trim();
+      const ifscCode = document.getElementById('withdrawManualIfsc').value.trim();
+      const branchName = document.getElementById('withdrawManualBranch').value.trim();
+      const accountHolderName = document.getElementById('withdrawManualHolderName').value.trim();
+
+      if (!bankName || !accountNumber || !ifscCode || !accountHolderName) {
+        showToast('Please fill all required manual bank details', 'error');
+        return;
+      }
+
+      payload.destinationDetails = {
+        bankName,
+        accountNumber,
+        ifscCode,
+        branchName,
+        accountHolderName
+      };
+    } else {
+      const walletName = document.getElementById('withdrawManualWalletName').value.trim();
+      const walletId = document.getElementById('withdrawManualWalletId').value.trim();
+
+      if (!walletName || !walletId) {
+        showToast('Please enter wallet name and UPI/Wallet ID', 'error');
+        return;
+      }
+
+      payload.destinationDetails = {
+        walletName,
+        walletId
+      };
+    }
+  }
+
+  const btn = document.getElementById('btnSubmitWithdrawal');
+  btn.disabled = true;
+  btn.textContent = 'Submitting Request...';
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/withdrawals`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentToken}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Withdrawal request submitted! SuperAdmin will transfer funds.', 'success');
+      document.getElementById('createWithdrawalForm').reset();
+      handleWithdrawDestTypeChange();
+      fetchVendorWithdrawals();
+      fetchVendorOverviewStats();
+    } else {
+      showToast(data.message || 'Failed to create withdrawal request', 'error');
+    }
+  } catch (err) {
+    console.error('handleCreateWithdrawal error:', err);
+    showToast('Failed to connect to server', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit Withdrawal Request';
+  }
+}
+
+async function fetchVendorWithdrawals(statusOverride = null) {
+  if (!currentToken) return;
+
+  const tbody = document.getElementById('vendorWithdrawalsTbody');
+  if (!tbody) return;
+
+  const filterSelect = document.getElementById('vendorWithdrawalFilter');
+  const status = statusOverride || (filterSelect ? filterSelect.value : 'all');
+
+  try {
+    let url = `${API_BASE}/vendors/withdrawals?limit=50`;
+    if (status && status !== 'all') {
+      url += `&status=${encodeURIComponent(status)}`;
+    }
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${currentToken}` }
+    });
+    const data = await res.json();
+
+    if (data.success && data.data) {
+      const summary = data.data.summary || {};
+      const availCommEl = document.getElementById('withdrawAvailCommission');
+      const totalWithdrawnEl = document.getElementById('withdrawTotalWithdrawn');
+
+      if (availCommEl) availCommEl.textContent = `₹ ${(summary.commissionBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      if (totalWithdrawnEl) totalWithdrawnEl.textContent = `₹ ${(summary.totalWithdrawn || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+      cachedWithdrawals = data.data.withdrawals || [];
+
+      if (cachedWithdrawals.length > 0) {
+        tbody.innerHTML = cachedWithdrawals.map(w => {
+          const dateStr = new Date(w.createdAt).toLocaleString('en-IN');
+          const dest = w.destinationDetails || {};
+          let destHtml = '';
+
+          if (w.destinationType === 'bank') {
+            destHtml = `<strong>🏦 ${dest.bankName || 'Bank'}</strong><br><small>A/C: <code>${dest.accountNumber || 'N/A'}</code> | IFSC: <code>${dest.ifscCode || 'N/A'}</code><br>Holder: ${dest.accountHolderName || 'N/A'}</small>`;
+          } else {
+            destHtml = `<strong>👛 ${dest.walletName || 'UPI'}</strong><br><small>VPA: <code>${dest.walletId || 'N/A'}</code></small>`;
+          }
+
+          let badgeClass = 'badge-pending';
+          let statusLabel = w.status;
+          if (w.status === 'PENDING_ADMIN_PAYMENT') {
+            badgeClass = 'badge-pending';
+            statusLabel = '⏳ Pending Admin Payment';
+          } else if (w.status === 'PAYMENT_SENT_BY_ADMIN') {
+            badgeClass = 'badge-info';
+            statusLabel = '💳 Payment Sent (Verify Now)';
+          } else if (w.status === 'APPROVED') {
+            badgeClass = 'badge-approved';
+            statusLabel = '✅ Completed & Settled';
+          } else if (w.status === 'REJECTED') {
+            badgeClass = 'badge-rejected';
+            statusLabel = '❌ Rejected';
+          }
+
+          let proofHtml = '<span class="text-muted">--</span>';
+          if (w.adminPaymentDetails?.transactionId) {
+            proofHtml = `
+              <div>
+                <span style="font-family: monospace; font-weight: 700; color: #4338ca; background: #e0e7ff; padding: 2px 6px; border-radius: 4px;">
+                  ${w.adminPaymentDetails.transactionId}
+                </span>
+                ${w.adminPaymentDetails.paymentProof ? `
+                  <div style="margin-top: 4px;">
+                    <a href="${w.adminPaymentDetails.paymentProof}" target="_blank" style="font-size: 0.8rem; color: #0284c7; text-decoration: underline; font-weight: 600;">
+                      🖼️ View Proof Screenshot
+                    </a>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }
+
+          let actionsHtml = '<span class="text-muted">--</span>';
+          if (w.status === 'PAYMENT_SENT_BY_ADMIN') {
+            actionsHtml = `
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-sm btn-success" style="padding: 4px 10px; font-weight: 700;" onclick="handleVendorApproveWithdrawal('${w.withdrawalId}')">
+                  ✓ Confirm & Approve
+                </button>
+                <button type="button" class="btn btn-sm btn-danger" style="padding: 4px 8px;" onclick="openVendorRejectWithdrawalModal('${w.withdrawalId}')">
+                  ✕ Reject
+                </button>
+              </div>
+            `;
+          } else if (w.status === 'APPROVED') {
+            actionsHtml = `<span style="color: #059669; font-weight: 700; font-size: 0.85rem;">✅ Settled</span>`;
+          } else if (w.status === 'REJECTED') {
+            actionsHtml = `<span style="color: #dc2626; font-size: 0.8rem;">❌ ${w.vendorConfirmation?.rejectionReason || 'Declined'}</span>`;
+          }
+
+          return `
+            <tr>
+              <td><strong style="font-family: monospace;">${w.withdrawalId}</strong></td>
+              <td style="font-weight: 800; font-size: 1.05rem; color: #7c3aed;">₹ ${(w.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+              <td style="font-size: 0.85rem;">${destHtml}</td>
+              <td><span class="badge ${badgeClass}">${statusLabel}</span></td>
+              <td>${proofHtml}</td>
+              <td style="font-size: 0.8rem; color: #64748b;">${dateStr}</td>
+              <td>${actionsHtml}</td>
+            </tr>
+          `;
+        }).join('');
+      } else {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No withdrawal requests found.</td></tr>';
+      }
+    }
+  } catch (err) {
+    console.error('fetchVendorWithdrawals error:', err);
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load withdrawal requests.</td></tr>';
+  }
+}
+
+async function handleVendorApproveWithdrawal(withdrawalId) {
+  if (!confirm(`Are you sure you have verified receiving this payout in your bank/wallet account and want to APPROVE withdrawal ${withdrawalId}?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/withdrawals/${withdrawalId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentToken}`
+      }
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Withdrawal ${withdrawalId} confirmed and settled successfully! Commission balance updated.`, 'success');
+      fetchVendorWithdrawals();
+      fetchVendorWalletAndLedger();
+      fetchVendorOverviewStats();
+    } else {
+      showToast(data.message || 'Failed to approve withdrawal', 'error');
+    }
+  } catch (err) {
+    console.error('handleVendorApproveWithdrawal error:', err);
+    showToast('Network error while approving withdrawal', 'error');
+  }
+}
+
+function openVendorRejectWithdrawalModal(withdrawalId) {
+  const modal = document.getElementById('rejectWithdrawalModal');
+  const idInput = document.getElementById('rejectWithdrawalId');
+  const reasonInput = document.getElementById('vendorRejectWithdrawalReason');
+
+  if (idInput) idInput.value = withdrawalId;
+  if (reasonInput) reasonInput.value = '';
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeVendorRejectWithdrawalModal() {
+  const modal = document.getElementById('rejectWithdrawalModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleConfirmVendorRejectWithdrawal(event) {
+  event.preventDefault();
+
+  const withdrawalId = document.getElementById('rejectWithdrawalId')?.value;
+  const reason = document.getElementById('vendorRejectWithdrawalReason')?.value.trim();
+  const btn = document.getElementById('btnConfirmRejectWithdrawal');
+
+  if (!withdrawalId) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Rejecting...';
+
+  try {
+    const res = await fetch(`${API_BASE}/vendors/withdrawals/${withdrawalId}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentToken}`
+      },
+      body: JSON.stringify({ rejectionReason: reason })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Withdrawal ${withdrawalId} rejected. No commission was deducted.`, 'success');
+      closeVendorRejectWithdrawalModal();
+      fetchVendorWithdrawals();
+    } else {
+      showToast(data.message || 'Failed to reject withdrawal', 'error');
+    }
+  } catch (err) {
+    console.error('handleConfirmVendorRejectWithdrawal error:', err);
+    showToast('Network error while rejecting withdrawal', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm Rejection';
+  }
+}
+
 
 

@@ -301,7 +301,7 @@ const getVendorOverviewStats = async (vendorId, timeframe = 'month') => {
         },
         totalWithdraw: {
           $sum: {
-            $cond: [{ $in: ['$transactionType', ['WITHDRAWAL', 'DEBIT_CLIENT_TRANSACTION']] }, '$amount', 0]
+            $cond: [{ $eq: ['$transactionType', 'WITHDRAWAL'] }, '$amount', 0]
           }
         },
         totalCommission: {
@@ -313,30 +313,58 @@ const getVendorOverviewStats = async (vendorId, timeframe = 'month') => {
     }
   ];
 
-  const result = await WalletTransaction.aggregate(pipeline);
-  const stats = result[0] || {
+  const [result, wallet] = await Promise.all([
+    WalletTransaction.aggregate(pipeline),
+    getOrCreateVendorWallet(vendorId)
+  ]);
+
+  const stats = (result && result[0]) || {
     totalTopUp: 0,
     totalDeposit: 0,
     totalWithdraw: 0,
     totalCommission: 0
   };
 
-  if (timeframe === 'all' && (!result || result.length === 0)) {
-    const wallet = await getOrCreateVendorWallet(vendorId);
-    return {
-      totalTopUp: wallet.totalDeposited || 0,
-      totalDeposit: wallet.totalDeposited || 0,
-      totalWithdraw: wallet.totalWithdrawn || 0,
-      totalCommission: wallet.totalCommissionEarned || 0,
-      timeframe
+  // Cross-check ClientTransaction commission if any
+  let clientTxCommission = 0;
+  try {
+    const ClientTransaction = require('../models/clientTransactionModel');
+    const clientMatch = {
+      vendorId: new mongoose.Types.ObjectId(vendorId.toString()),
+      status: { $in: ['APPROVED', 'COMPLETED'] }
     };
+    if (startDate) {
+      clientMatch.$or = [
+        { approvedAt: { $gte: startDate } },
+        { createdAt: { $gte: startDate } }
+      ];
+    }
+    const clientTxResult = await ClientTransaction.aggregate([
+      { $match: clientMatch },
+      { $group: { _id: null, totalCommission: { $sum: '$commissionAmount' } } }
+    ]);
+    if (clientTxResult && clientTxResult.length > 0 && clientTxResult[0].totalCommission) {
+      clientTxCommission = Number(clientTxResult[0].totalCommission) || 0;
+    }
+  } catch (err) {
+    console.error('Error aggregating ClientTransaction commission:', err.message);
   }
 
+  const resolvedCommission = Math.max(
+    Number(stats.totalCommission) || 0,
+    clientTxCommission,
+    timeframe === 'all' ? (Number(wallet.totalCommissionEarned) || Number(wallet.commissionBalance) || 0) : 0
+  );
+
   return {
-    totalTopUp: stats.totalTopUp || 0,
-    totalDeposit: stats.totalDeposit || 0,
-    totalWithdraw: stats.totalWithdraw || 0,
-    totalCommission: stats.totalCommission || 0,
+    totalTopUp: (Number(stats.totalTopUp) || 0) || (timeframe === 'all' ? (wallet.totalDeposited || 0) : 0),
+    totalDeposit: (Number(stats.totalDeposit) || 0) || (timeframe === 'all' ? (wallet.totalDeposited || 0) : 0),
+    totalWithdraw: (Number(stats.totalWithdraw) || 0) || (timeframe === 'all' ? (wallet.totalWithdrawn || 0) : 0),
+    totalCommission: resolvedCommission,
+    commissionBalance: Number(wallet.commissionBalance) || 0,
+    totalCommissionEarned: Number(wallet.totalCommissionEarned) || 0,
+    walletBalance: Number(wallet.balance) || 0,
+    availableBalance: Math.max(0, (Number(wallet.balance) || 0) - (Number(wallet.lockedBalance) || 0)),
     timeframe
   };
 };

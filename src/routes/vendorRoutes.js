@@ -59,6 +59,14 @@ const {
 } = require('../controllers/vendorPaymentController');
 
 const {
+  vendorCreateWithdrawal,
+  vendorGetWithdrawals,
+  vendorGetWithdrawalById,
+  vendorApproveWithdrawal,
+  vendorRejectWithdrawal
+} = require('../controllers/withdrawalController');
+
+const {
   authMiddleware,
   vendorAuth,
   validateObjectId
@@ -177,6 +185,7 @@ router.get('/fcfs-status', authMiddleware, vendorAuth, getVendorQueueStatus);
 router.get('/payment-destinations', authMiddleware, vendorAuth, getDestinations);
 router.get('/tiers', authMiddleware, vendorAuth, getTiers);
 router.get('/tier-progress', authMiddleware, vendorAuth, getVendorCurrentProgress);
+
 // =============================================================================
 // 9. INCOMING CLIENT PAYMENT VERIFICATION & APPROVAL (Protected - Vendor only)
 // =============================================================================
@@ -184,5 +193,14 @@ router.get(['/payment-requests', '/incoming-payments'], authMiddleware, vendorAu
 router.get(['/payment/:paymentId', '/payment-requests/:paymentId'], authMiddleware, vendorAuth, getVendorPaymentById);
 router.post(['/payment/:paymentId/approve', '/payment-requests/:paymentId/approve'], authMiddleware, vendorAuth, approvePayment);
 router.post(['/payment/:paymentId/reject', '/payment-requests/:paymentId/reject'], authMiddleware, vendorAuth, rejectPayment);
+
+// =============================================================================
+// 10. VENDOR COMMISSION WITHDRAWALS (Protected - Vendor only)
+// =============================================================================
+router.post('/withdrawals', authMiddleware, vendorAuth, vendorCreateWithdrawal);
+router.get('/withdrawals', authMiddleware, vendorAuth, vendorGetWithdrawals);
+router.get('/withdrawals/:id', authMiddleware, vendorAuth, vendorGetWithdrawalById);
+router.post('/withdrawals/:id/approve', authMiddleware, vendorAuth, vendorApproveWithdrawal);
+router.post('/withdrawals/:id/reject', authMiddleware, vendorAuth, vendorRejectWithdrawal);
 
 module.exports = router;

@@ -127,8 +127,16 @@
             <span id="dashTierBadge" class="badge badge-tier-bronze">Bronze V</span>
           </div>
           <div class="status-item">
-            <span class="label">Effective Commission</span>
+            <span class="label">Commission Rate</span>
             <span id="dashCommissionBadge" class="badge badge-info">--%</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Commission Balance</span>
+            <span id="dashCommissionBalanceBadge" class="badge badge-approved" style="font-weight: 700; font-size: 0.95rem;">₹ 0.00</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Wallet Balance</span>
+            <span id="dashWalletBalanceBadge" class="badge badge-info" style="font-weight: 700; font-size: 0.95rem;">₹ 0.00</span>
           </div>
           <div class="status-item">
             <span class="label">KYC Verification</span>
@@ -144,6 +152,7 @@
       <!-- Tabs Navigation -->
       <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('walletTab')">💰 Wallet & Ledger</button>
+        <button class="tab-btn" onclick="switchTab('withdrawalsTab')">💸 Withdrawals</button>
         <button class="tab-btn" onclick="switchTab('tiersTab')">🏆 Tiers & Rank</button>
         <button class="tab-btn" onclick="switchTab('topupsTab')">⚡ Top-Up Requests</button>
         <button class="tab-btn" onclick="switchTab('banksTab')">🏦 Bank Accounts</button>
@@ -167,9 +176,9 @@
               <div class="action-icon-box action-icon-blue">↓</div>
               <span class="action-btn-label">Deposit</span>
             </button>
-            <button class="action-btn-item" onclick="openWithdrawModal()">
+            <button class="action-btn-item" onclick="switchTab('withdrawalsTab')">
               <div class="action-icon-box action-icon-purple">↗</div>
-              <span class="action-btn-label">withdraw</span>
+              <span class="action-btn-label">Withdraw</span>
             </button>
             <button class="action-btn-item" onclick="openTransferModal()">
               <div class="action-icon-box action-icon-orange">⇄</div>
@@ -262,6 +271,175 @@
               <tbody id="walletLedgerTbody">
                 <tr>
                   <td colspan="7" class="empty-state">Loading ledger...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: COMMISSION WITHDRAWALS -->
+      <div id="withdrawalsTab" class="tab-content hidden">
+        <!-- Key Metrics Strip -->
+        <div class="stats-grid mb-3">
+          <div class="stat-card" style="border-left: 4px solid #10b981;">
+            <span class="stat-title">Available Commission Balance</span>
+            <span class="stat-value" id="withdrawAvailCommission" style="color: #059669;">₹ 0.00</span>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #6366f1;">
+            <span class="stat-title">Minimum Withdrawal Limit</span>
+            <span class="stat-value" style="color: #4f46e5;">₹ 25,000</span>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
+            <span class="stat-title">Total Commission Withdrawn</span>
+            <span class="stat-value" id="withdrawTotalWithdrawn" style="color: #7c3aed;">₹ 0.00</span>
+          </div>
+        </div>
+
+        <div class="grid-2 mb-3">
+          <!-- Request Commission Withdrawal Form -->
+          <div class="card">
+            <div class="card-header">
+              <h3>💸 Request Commission Withdrawal</h3>
+              <p class="subtitle">Payout earned commission to your Bank Account or UPI / Wallet</p>
+            </div>
+            <form id="createWithdrawalForm" onsubmit="handleCreateWithdrawal(event)">
+              <div class="form-group">
+                <label>Withdrawal Amount (₹) * (Min ₹25,000)</label>
+                <input type="number" id="withdrawAmount" required min="25000" step="any" placeholder="e.g. 25000">
+                <small class="text-muted" style="display: block; margin-top: 4px;">Must not exceed your Available Commission Balance.</small>
+              </div>
+
+              <div class="form-group">
+                <label>Payout Destination Type *</label>
+                <select id="withdrawDestType" required onchange="handleWithdrawDestTypeChange()">
+                  <option value="bank">Bank Account</option>
+                  <option value="wallet">UPI / Wallet</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Destination Account *</label>
+                <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                  <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: 500;">
+                    <input type="radio" name="withdrawDestSource" value="linked" checked onchange="handleWithdrawSourceChange()"> Select From Linked Accounts
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: 500;">
+                    <input type="radio" name="withdrawDestSource" value="manual" onchange="handleWithdrawSourceChange()"> Enter New / Custom Details
+                  </label>
+                </div>
+              </div>
+
+              <!-- Linked Account Dropdowns -->
+              <div id="withdrawLinkedBankGroup" class="form-group">
+                <label>Choose Linked Bank Account *</label>
+                <select id="withdrawLinkedBankSelect" class="form-select" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);"></select>
+              </div>
+
+              <div id="withdrawLinkedWalletGroup" class="form-group hidden">
+                <label>Choose Linked Wallet / UPI *</label>
+                <select id="withdrawLinkedWalletSelect" class="form-select" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);"></select>
+              </div>
+
+              <!-- Manual Account Input Fields -->
+              <div id="withdrawManualBankGroup" class="hidden">
+                <div class="form-group">
+                  <label>Bank Name *</label>
+                  <input type="text" id="withdrawManualBankName" placeholder="e.g. HDFC Bank">
+                </div>
+                <div class="form-group">
+                  <label>Account Number *</label>
+                  <input type="text" id="withdrawManualAccountNo" placeholder="e.g. 5010023456789">
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>IFSC Code *</label>
+                    <input type="text" id="withdrawManualIfsc" placeholder="HDFC0001234">
+                  </div>
+                  <div class="form-group">
+                    <label>Branch Name</label>
+                    <input type="text" id="withdrawManualBranch" placeholder="e.g. Connaught Place">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Account Holder Name *</label>
+                  <input type="text" id="withdrawManualHolderName" placeholder="e.g. John Doe">
+                </div>
+              </div>
+
+              <div id="withdrawManualWalletGroup" class="hidden">
+                <div class="form-group">
+                  <label>Wallet / UPI App Name *</label>
+                  <input type="text" id="withdrawManualWalletName" placeholder="e.g. GooglePay UPI / Paytm">
+                </div>
+                <div class="form-group">
+                  <label>UPI ID / VPA Address *</label>
+                  <input type="text" id="withdrawManualWalletId" placeholder="e.g. vendor@okhdfcbank">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Note / Remarks (Optional)</label>
+                <input type="text" id="withdrawNotes" placeholder="e.g. Weekly commission payout">
+              </div>
+
+              <button type="submit" class="btn btn-primary w-full" id="btnSubmitWithdrawal">Submit Withdrawal Request</button>
+            </form>
+          </div>
+
+          <!-- Withdrawal Flow Instructions -->
+          <div class="card">
+            <div class="card-header">
+              <h3>ℹ️ Withdrawal Workflow & Rules</h3>
+            </div>
+            <div class="info-box mb-3" style="background: #f0fdf4; border-color: #86efac; color: #166534; line-height: 1.6;">
+              <strong>Step 1: Request Withdrawal</strong><br>
+              Submit a request (minimum <strong>₹25,000</strong>) from your available commission balance.<br><br>
+              <strong>Step 2: Admin Processes Payment</strong><br>
+              SuperAdmin transfers payout amount to your specified destination and submits payment screenshot proof + Bank UTR / Reference ID.<br><br>
+              <strong>Step 3: Vendor Verification & Confirmation</strong><br>
+              Check your bank/wallet statement. Once verified, click <strong>"✓ Confirm & Approve"</strong>.<br><br>
+              <strong>Step 4: Atomic Settlement</strong><br>
+              Upon your approval, commission balance is deducted and Total Withdrawn is updated in your ledger.
+            </div>
+          </div>
+        </div>
+
+        <!-- Withdrawal Requests History Table -->
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <h3>📋 Withdrawal Requests Tracker</h3>
+              <p class="subtitle">Track payout status, view admin transaction proofs, and verify received funds</p>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="vendorWithdrawalFilter" class="form-select" onchange="fetchVendorWithdrawals(this.value)" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.85rem;">
+                <option value="all">All Statuses</option>
+                <option value="PENDING_ADMIN_PAYMENT">Pending Admin Payment</option>
+                <option value="PAYMENT_SENT_BY_ADMIN">Payment Sent (Needs Your Confirmation)</option>
+                <option value="APPROVED">Completed / Approved</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+              <button class="btn btn-sm btn-secondary" onclick="fetchVendorWithdrawals()">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Request ID</th>
+                  <th>Amount</th>
+                  <th>Destination Details</th>
+                  <th>Status</th>
+                  <th>Admin Proof & UTR</th>
+                  <th>Requested At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="vendorWithdrawalsTbody">
+                <tr>
+                  <td colspan="7" class="empty-state">Loading withdrawal requests...</td>
                 </tr>
               </tbody>
             </table>
@@ -834,6 +1012,28 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closeVendorRejectModal()">Cancel</button>
           <button type="submit" class="btn btn-danger" id="btnConfirmReject">Confirm Rejection</button>
+        </div>
+      </form>
+    </div>
+  <!-- Vendor Withdrawal Rejection Modal -->
+  <div id="rejectWithdrawalModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 480px;">
+      <div class="card-header flex-between">
+        <h3>❌ Reject Withdrawal Payout</h3>
+        <button type="button" class="btn-close" onclick="closeVendorRejectWithdrawalModal()">✕</button>
+      </div>
+      <form id="vendorRejectWithdrawalForm" onsubmit="handleConfirmVendorRejectWithdrawal(event)">
+        <input type="hidden" id="rejectWithdrawalId">
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
+          Reject this payout if funds were not received in your account. No commission will be deducted.
+        </p>
+        <div class="form-group">
+          <label>Reason for Rejection *</label>
+          <textarea id="vendorRejectWithdrawalReason" required rows="3" placeholder="e.g. Amount not credited in account / Invalid UTR reference" style="width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-family: inherit; font-size: 0.9rem; box-sizing: border-box;"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeVendorRejectWithdrawalModal()">Cancel</button>
+          <button type="submit" class="btn btn-danger" id="btnConfirmRejectWithdrawal">Confirm Rejection</button>
         </div>
       </form>
     </div>

@@ -74,6 +74,13 @@ const {
   handleRunMonthlyReset
 } = require('../controllers/tierController');
 
+// Vendor Commission Withdrawals Management
+const {
+  adminGetWithdrawals,
+  adminGetWithdrawalById,
+  adminSendWithdrawalPayment
+} = require('../controllers/withdrawalController');
+
 // Middleware
 const {
   authMiddleware,
@@ -179,7 +186,20 @@ router.post('/vendors/:vendorId/manual-commission', authMiddleware, superAdminAu
 router.delete('/vendors/:vendorId/manual-commission', authMiddleware, superAdminAuth, validateObjectId('vendorId'), handleRemoveManualCommission);
 
 // =============================================================================
-// 10. AUDIT LOGS
+// 10. VENDOR COMMISSION WITHDRAWALS MANAGEMENT
+// =============================================================================
+router.get('/withdrawals', authMiddleware, adminAuth, adminGetWithdrawals);
+router.get('/withdrawals/:id', authMiddleware, adminAuth, adminGetWithdrawalById);
+router.post(
+  '/withdrawals/:id/send-payment',
+  authMiddleware,
+  superAdminAuth,
+  upload.single('paymentProof'),
+  adminSendWithdrawalPayment
+);
+
+// =============================================================================
+// 11. AUDIT LOGS
 // =============================================================================
 const AuditLog = require('../models/auditLogModel');
 router.get('/audit-logs', authMiddleware, adminAuth, async (req, res, next) => {

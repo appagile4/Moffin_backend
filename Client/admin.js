@@ -14,6 +14,10 @@ let fcfsQueueCache = [];
 let allRequestsHistoryCache = [];
 let currentVendorFilter = 'all';
 let currentHistoryFilter = 'all';
+let adminWithdrawalsCache = [];
+let currentWithdrawalFilter = 'all';
+let withdrawalCurrentPage = 1;
+let withdrawalTotalPages = 1;
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
@@ -72,6 +76,8 @@ function switchAdminTab(tabId) {
   } else if (tabId === 'clientsTab') {
     fetchAdminClientStats();
     fetchAdminClients();
+  } else if (tabId === 'withdrawalsManagementTab') {
+    fetchAdminWithdrawals();
   } else if (tabId === 'tiersManagementTab') {
     fetchAdminTierAnalytics();
     fetchAdminTiersList();
@@ -2115,10 +2121,13 @@ function renderAdminClientsTable(clients) {
       year: 'numeric'
     });
 
+    const balanceFormatted = Number(client.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
     return `
       <tr>
         <td><code style="font-size: 0.78rem;">${clientId.substring(0, 8)}...</code></td>
         <td><strong>${fullName}</strong><br><small class="text-muted">${email}</small></td>
+        <td><span style="font-weight: 800; color: #059669; font-size: 0.95rem;">₹${balanceFormatted}</span></td>
         <td><strong>${mobile}</strong>${whatsapp}</td>
         <td>${businessInfo}</td>
         <td><div style="max-width: 180px; display: flex; flex-wrap: wrap; gap: 0.25rem;">${telegramChips}</div></td>
@@ -2231,87 +2240,732 @@ async function submitClientStatusChange(event) {
   }
 }
 
-function openClientDetailModal(clientId) {
-  const client = clientsCache.find(c => (c._id || c.id) === clientId);
-  if (!client) return;
-
-  const telegramList = client.telegramIds && client.telegramIds.length > 0
-    ? client.telegramIds.map(t => `<span class="telegram-chip">✈️ ${t}</span>`).join(' ')
-    : '<span class="text-muted">None registered</span>';
-
-  const platformLink = client.platformUrl
-    ? `<a href="${client.platformUrl}" target="_blank" style="color: #0284c7; text-decoration: underline;">${client.platformUrl} ↗</a>`
-    : 'N/A';
-
+async function openClientDetailModal(clientId) {
   const content = document.getElementById('modalClientDetailContent');
+  if (!content) return;
+
+  // Show loading state while fetching live financial summary
   content.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.9rem;">
-      <div class="info-card">
-        <span class="label">Full Name</span>
-        <span class="value">${client.firstName} ${client.lastName}</span>
-      </div>
-      <div class="info-card">
-        <span class="label">User Role</span>
-        <span class="value"><span class="badge badge-info">${client.role}</span></span>
-      </div>
-      <div class="info-card">
-        <span class="label">Email Address</span>
-        <span class="value">${client.email}</span>
-      </div>
-      <div class="info-card">
-        <span class="label">Primary Phone</span>
-        <span class="value">${client.mobile || '--'}</span>
-      </div>
-      <div class="info-card">
-        <span class="label">WhatsApp Number</span>
-        <span class="value">${client.whatsappNumber || '--'}</span>
-      </div>
-      <div class="info-card">
-        <span class="label">Alternative Phone</span>
-        <span class="value">${client.alternativeMobileNumber || '--'}</span>
-      </div>
-      <div class="info-card" style="grid-column: span 2;">
-        <span class="label">Platform URL / Website</span>
-        <span class="value">${platformLink}</span>
-      </div>
-      <div class="info-card" style="grid-column: span 2;">
-        <span class="label">Business / Service Type</span>
-        <span class="value">${client.businessType || 'N/A'}</span>
-      </div>
-      <div class="info-card" style="grid-column: span 2;">
-        <span class="label">Telegram IDs</span>
-        <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem;">
-          ${telegramList}
-        </div>
-      </div>
-      <div class="info-card">
-        <span class="label">Account Status</span>
-        <div style="margin-top: 0.25rem;"><span class="status-pill ${client.status}">${client.status.toUpperCase()}</span></div>
-      </div>
-      <div class="info-card">
-        <span class="label">KYC Verification</span>
-        <div style="margin-top: 0.25rem;"><span class="badge badge-${client.isVerified ? 'success' : 'warning'}">${client.isVerified ? 'Verified' : 'Unverified'}</span></div>
-      </div>
-      <div class="info-card">
-        <span class="label">Registered At</span>
-        <span class="value" style="font-size: 0.85rem;">${new Date(client.createdAt).toLocaleString('en-IN')}</span>
-      </div>
-      <div class="info-card">
-        <span class="label">Last Login</span>
-        <span class="value" style="font-size: 0.85rem;">${client.lastLoginAt ? new Date(client.lastLoginAt).toLocaleString('en-IN') : 'Never'}</span>
-      </div>
-      <div class="info-card" style="grid-column: span 2;">
-        <span class="label">MongoDB Client ID</span>
-        <code style="font-size: 0.85rem;">${client._id || client.id}</code>
-      </div>
+    <div style="text-align: center; padding: 2rem;">
+      <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⏳</div>
+      <p class="text-muted">Loading live financial overview & client profile...</p>
     </div>
   `;
-
   document.getElementById('clientDetailModal').classList.remove('hidden');
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/clients/${clientId}`, {
+      headers: {
+        'Authorization': `Bearer ${adminToken}`
+      }
+    });
+
+    const data = await res.json();
+    if (!data.success || !data.data?.client) {
+      content.innerHTML = `<p class="empty-state" style="color: #dc2626;">Failed to load client details: ${data.message || 'Unknown error'}</p>`;
+      return;
+    }
+
+    const client = data.data.client;
+    const fin = data.data.financialSummary || {
+      currentBalance: Number(client.balance) || 0,
+      withdrawableBalance: Number(client.balance) || 0,
+      totalApprovedAmount: 0,
+      totalApprovedCount: 0,
+      totalPendingAmount: 0,
+      totalPendingCount: 0,
+      totalRejectedAmount: 0,
+      totalRejectedCount: 0
+    };
+
+    const recentTx = data.data.recentTransactions || [];
+
+    const telegramList = client.telegramIds && client.telegramIds.length > 0
+      ? client.telegramIds.map(t => `<span class="telegram-chip">✈️ ${t}</span>`).join(' ')
+      : '<span class="text-muted">None registered</span>';
+
+    const platformLink = client.platformUrl
+      ? `<a href="${client.platformUrl}" target="_blank" style="color: #0284c7; text-decoration: underline;">${client.platformUrl} ↗</a>`
+      : 'N/A';
+
+    // Build Recent Transactions Mini Table
+    let txTableHtml = '';
+    if (recentTx.length > 0) {
+      txTableHtml = `
+        <div style="margin-top: 1.25rem;">
+          <h4 style="font-size: 0.95rem; color: #1e293b; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
+            <span>📜 Recent Payment Requests (${recentTx.length})</span>
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">Latest transactions</span>
+          </h4>
+          <div style="overflow-x: auto; max-height: 200px; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <table class="custom-table" style="font-size: 0.8rem; margin: 0;">
+              <thead>
+                <tr style="background: #f8fafc;">
+                  <th style="padding: 6px 10px;">Tx ID</th>
+                  <th style="padding: 6px 10px;">Amount</th>
+                  <th style="padding: 6px 10px;">Method</th>
+                  <th style="padding: 6px 10px;">Status</th>
+                  <th style="padding: 6px 10px;">UTR / Reference</th>
+                  <th style="padding: 6px 10px;">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${recentTx.map(t => {
+                  let badge = 'badge-info';
+                  if (t.status === 'APPROVED' || t.status === 'COMPLETED') badge = 'badge-success';
+                  else if (t.status === 'REJECTED') badge = 'badge-danger';
+                  else if (t.status === 'AWAITING_VENDOR_VERIFICATION') badge = 'badge-warning';
+
+                  const amt = (t.approvedAmount || t.amount || 0).toLocaleString('en-IN');
+                  const dt = t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-IN') : '--';
+                  const utr = t.externalTransactionId || '<span style="color:#94a3b8;">--</span>';
+
+                  return `
+                    <tr>
+                      <td style="padding: 6px 10px; font-family: monospace; font-weight: 700;">${t.transactionId}</td>
+                      <td style="padding: 6px 10px; font-weight: 800; color: #059669;">₹${amt}</td>
+                      <td style="padding: 6px 10px;"><span class="badge ${t.paymentMethod === 'bank' ? 'badge-primary' : 'badge-info'}" style="font-size: 0.7rem; padding: 2px 5px;">${(t.paymentMethod || 'wallet').toUpperCase()}</span></td>
+                      <td style="padding: 6px 10px;"><span class="badge ${badge}" style="font-size: 0.7rem; padding: 2px 5px;">${t.status}</span></td>
+                      <td style="padding: 6px 10px; font-family: monospace; font-size: 0.75rem;">${utr}</td>
+                      <td style="padding: 6px 10px; color: #64748b;">${dt}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    } else {
+      txTableHtml = `
+        <div style="margin-top: 1rem; padding: 0.75rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center; font-size: 0.85rem; color: #64748b;">
+          No payment requests submitted yet.
+        </div>
+      `;
+    }
+
+    content.innerHTML = `
+      <!-- 1. LIVE FINANCIAL OVERVIEW PANEL -->
+      <div style="margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+          <h4 style="font-size: 0.95rem; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 6px;">
+            <span>💰 Financial Overview & Balances</span>
+          </h4>
+          <span class="badge badge-approved" style="font-size: 0.75rem;">Authoritative Live Ledger</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.65rem;">
+          
+          <!-- Current Wallet Balance -->
+          <div style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border: 1px solid #a7f3d0; border-radius: 8px; padding: 10px 12px;">
+            <div style="font-size: 0.75rem; color: #047857; font-weight: 700; text-transform: uppercase;">Available Balance</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: #065f46; margin: 2px 0;">₹${fin.currentBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+            <div style="font-size: 0.7rem; color: #059669;">In Client Possession</div>
+          </div>
+
+          <!-- Withdrawable Balance -->
+          <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 12px;">
+            <div style="font-size: 0.75rem; color: #1d4ed8; font-weight: 700; text-transform: uppercase;">Withdrawable</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: #1e40af; margin: 2px 0;">₹${fin.withdrawableBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+            <div style="font-size: 0.7rem; color: #2563eb;">Ready for Payout</div>
+          </div>
+
+          <!-- Total Approved -->
+          <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px;">
+            <div style="font-size: 0.75rem; color: #15803d; font-weight: 700; text-transform: uppercase;">Total Approved</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #166534; margin: 2px 0;">₹${fin.totalApprovedAmount.toLocaleString('en-IN')}</div>
+            <div style="font-size: 0.7rem; color: #16a34a;">✅ ${fin.totalApprovedCount} successful</div>
+          </div>
+
+          <!-- Total Pending -->
+          <div style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px;">
+            <div style="font-size: 0.75rem; color: #b45309; font-weight: 700; text-transform: uppercase;">Pending Approval</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #92400e; margin: 2px 0;">₹${fin.totalPendingAmount.toLocaleString('en-IN')}</div>
+            <div style="font-size: 0.7rem; color: #d97706;">⏳ ${fin.totalPendingCount} in verification</div>
+          </div>
+
+          <!-- Total Rejected -->
+          <div style="background: linear-gradient(135deg, #fef2f2, #fee2e2); border: 1px solid #fecaca; border-radius: 8px; padding: 10px 12px;">
+            <div style="font-size: 0.75rem; color: #b91c1c; font-weight: 700; text-transform: uppercase;">Rejected / Failed</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #991b1b; margin: 2px 0;">₹${fin.totalRejectedAmount.toLocaleString('en-IN')}</div>
+            <div style="font-size: 0.7rem; color: #dc2626;">❌ ${fin.totalRejectedCount} rejected</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 2. CLIENT PERSONAL & BUSINESS PROFILE -->
+      <div>
+        <h4 style="font-size: 0.95rem; color: #1e293b; margin-bottom: 0.5rem;">👤 Personal & Business Information</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.85rem;">
+          <div class="info-card">
+            <span class="label">Full Name</span>
+            <span class="value">${client.firstName} ${client.lastName}</span>
+          </div>
+          <div class="info-card">
+            <span class="label">User Role</span>
+            <span class="value"><span class="badge badge-info">${client.role || 'client'}</span></span>
+          </div>
+          <div class="info-card">
+            <span class="label">Email Address</span>
+            <span class="value">${client.email}</span>
+          </div>
+          <div class="info-card">
+            <span class="label">Primary Phone</span>
+            <span class="value">${client.mobile || '--'}</span>
+          </div>
+          <div class="info-card">
+            <span class="label">WhatsApp Number</span>
+            <span class="value">${client.whatsappNumber || '--'}</span>
+          </div>
+          <div class="info-card">
+            <span class="label">Alternative Phone</span>
+            <span class="value">${client.alternativeMobileNumber || '--'}</span>
+          </div>
+          <div class="info-card" style="grid-column: span 2;">
+            <span class="label">Platform URL / Website</span>
+            <span class="value">${platformLink}</span>
+          </div>
+          <div class="info-card" style="grid-column: span 2;">
+            <span class="label">Business / Service Type</span>
+            <span class="value">${client.businessType || 'N/A'}</span>
+          </div>
+          <div class="info-card" style="grid-column: span 2;">
+            <span class="label">Telegram IDs</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem;">
+              ${telegramList}
+            </div>
+          </div>
+          <div class="info-card">
+            <span class="label">Account Status</span>
+            <div style="margin-top: 0.25rem;"><span class="status-pill ${client.status}">${(client.status || 'active').toUpperCase()}</span></div>
+          </div>
+          <div class="info-card">
+            <span class="label">KYC Verification</span>
+            <div style="margin-top: 0.25rem;"><span class="badge badge-${client.isVerified ? 'success' : 'warning'}">${client.isVerified ? 'Verified' : 'Unverified'}</span></div>
+          </div>
+          <div class="info-card">
+            <span class="label">Registered At</span>
+            <span class="value" style="font-size: 0.8rem;">${new Date(client.createdAt).toLocaleString('en-IN')}</span>
+          </div>
+          <div class="info-card">
+            <span class="label">Last Login</span>
+            <span class="value" style="font-size: 0.8rem;">${client.lastLoginAt ? new Date(client.lastLoginAt).toLocaleString('en-IN') : 'Never'}</span>
+          </div>
+          <div class="info-card" style="grid-column: span 2;">
+            <span class="label">MongoDB Client ID</span>
+            <code style="font-size: 0.8rem;">${client._id || client.id}</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. RECENT TRANSACTIONS TABLE -->
+      ${txTableHtml}
+    `;
+
+  } catch (err) {
+    console.error('openClientDetailModal error:', err);
+    content.innerHTML = `<p class="empty-state" style="color: #dc2626;">Network error loading client profile details.</p>`;
+  }
 }
 
 function closeClientDetailModal() {
   document.getElementById('clientDetailModal').classList.add('hidden');
 }
+
+/**
+ * =============================================================================
+ * 7. VENDOR COMMISSION WITHDRAWALS MANAGEMENT
+ * =============================================================================
+ */
+
+let adminWithdrawalSearchTimeout = null;
+
+async function fetchAdminWithdrawals(page = 1) {
+  if (!adminToken) return;
+
+  withdrawalCurrentPage = page;
+  const search = document.getElementById('adminWithdrawalSearchInput')?.value.trim() || '';
+  const statusParam = currentWithdrawalFilter !== 'all' ? `&status=${currentWithdrawalFilter}` : '';
+  const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/withdrawals?page=${withdrawalCurrentPage}&limit=20${statusParam}${searchParam}`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success && data.data) {
+      adminWithdrawalsCache = data.data.withdrawals || [];
+      const pagination = data.data.pagination || { page: 1, pages: 1, total: 0 };
+      const stats = data.data.stats || {};
+
+      withdrawalTotalPages = pagination.pages || 1;
+      updateAdminWithdrawalStats(stats, pagination.total);
+      updateAdminWithdrawalPagination(pagination);
+      renderAdminWithdrawalsTable();
+    } else {
+      showToast(data.message || 'Failed to fetch withdrawals', 'error');
+    }
+  } catch (err) {
+    console.error('fetchAdminWithdrawals error:', err);
+    showToast('Failed to load withdrawal requests', 'error');
+  }
+}
+
+function updateAdminWithdrawalStats(stats, totalCount) {
+  document.getElementById('statTotalWithdrawalsCount').textContent = totalCount || 0;
+  
+  const settledVolume = stats.approvedVolume || 0;
+  document.getElementById('statSettledWithdrawalsVolume').textContent = `₹${settledVolume.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  
+  document.getElementById('statPendingAdminPaymentCount').textContent = stats.pendingAdminPaymentCount || 0;
+  document.getElementById('statPaymentSentCount').textContent = stats.paymentSentCount || 0;
+  document.getElementById('statApprovedWithdrawalsCount').textContent = stats.approvedCount || 0;
+}
+
+function updateAdminWithdrawalPagination(pagination) {
+  const page = pagination.page || 1;
+  const pages = pagination.pages || 1;
+  const total = pagination.total || 0;
+
+  const infoEl = document.getElementById('withdrawalPaginationInfo');
+  const indicatorEl = document.getElementById('withdrawalPageIndicator');
+  const btnPrev = document.getElementById('btnWithdrawalPrevPage');
+  const btnNext = document.getElementById('btnWithdrawalNextPage');
+
+  if (infoEl) infoEl.textContent = `Showing page ${page} of ${pages} (${total} total requests)`;
+  if (indicatorEl) indicatorEl.textContent = `Page ${page} of ${pages}`;
+  if (btnPrev) btnPrev.disabled = page <= 1;
+  if (btnNext) btnNext.disabled = page >= pages;
+}
+
+function changeWithdrawalPage(delta) {
+  const targetPage = withdrawalCurrentPage + delta;
+  if (targetPage >= 1 && targetPage <= withdrawalTotalPages) {
+    fetchAdminWithdrawals(targetPage);
+  }
+}
+
+function setAdminWithdrawalFilter(filter, event) {
+  currentWithdrawalFilter = filter;
+  document.querySelectorAll('#withdrawalsManagementTab .tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  if (event && event.target) event.target.classList.add('active');
+  fetchAdminWithdrawals(1);
+}
+
+function handleAdminWithdrawalSearch() {
+  clearTimeout(adminWithdrawalSearchTimeout);
+  adminWithdrawalSearchTimeout = setTimeout(() => {
+    fetchAdminWithdrawals(1);
+  }, 350);
+}
+
+function renderAdminWithdrawalsTable() {
+  const tbody = document.getElementById('adminWithdrawalsTbody');
+  if (!tbody) return;
+
+  if (adminWithdrawalsCache.length > 0) {
+    tbody.innerHTML = adminWithdrawalsCache.map(w => {
+      const vendorName = w.vendorId ? `${w.vendorId.firstName} ${w.vendorId.lastName}` : 'Unknown Vendor';
+      const vendorEmail = w.vendorId?.email || '';
+      const vendorMobile = w.vendorId?.mobileNumber || '';
+      const amountStr = `₹${(w.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      const dateStr = new Date(w.createdAt).toLocaleString('en-IN');
+
+      // Payout Destination Formatting
+      let destHtml = '';
+      const isBank = w.destinationType === 'bank';
+      const destTypeBadge = isBank
+        ? '<span class="badge badge-primary" style="font-size: 0.7rem; padding: 2px 5px;">🏦 BANK</span>'
+        : '<span class="badge badge-info" style="font-size: 0.7rem; padding: 2px 5px;">👛 WALLET / UPI</span>';
+
+      const originTag = w.isManualDestination
+        ? '<span class="badge badge-warning" style="font-size: 0.65rem; margin-left: 4px;">Manual New</span>'
+        : '<span class="badge badge-default" style="font-size: 0.65rem; margin-left: 4px;">Linked Profile</span>';
+
+      if (isBank) {
+        destHtml = `
+          <div>
+            ${destTypeBadge} ${originTag}<br>
+            <strong>${w.destinationDetails?.bankName || 'Bank'}</strong><br>
+            <small class="text-muted">A/C: <code>${w.destinationDetails?.accountNumber || '--'}</code></small><br>
+            <small class="text-muted">IFSC: <code>${w.destinationDetails?.ifscCode || '--'}</code> | Holder: ${w.destinationDetails?.accountHolderName || '--'}</small>
+          </div>
+        `;
+      } else {
+        destHtml = `
+          <div>
+            ${destTypeBadge} ${originTag}<br>
+            <strong>${w.destinationDetails?.walletName || 'Wallet / UPI'}</strong><br>
+            <small class="text-muted">UPI ID / VPA: <code>${w.destinationDetails?.walletId || '--'}</code></small>
+          </div>
+        `;
+      }
+
+      // Status Badge Formatting
+      let statusBadge = '';
+      if (w.status === 'PENDING_ADMIN_PAYMENT') {
+        statusBadge = '<span class="badge badge-warning" style="padding: 4px 8px; font-weight: 700;">⏳ Awaiting Payment</span>';
+      } else if (w.status === 'PAYMENT_SENT_BY_ADMIN') {
+        statusBadge = '<span class="badge badge-info" style="padding: 4px 8px; font-weight: 700;">💳 Sent (Awaiting Vendor)</span>';
+      } else if (w.status === 'APPROVED') {
+        statusBadge = '<span class="badge badge-success" style="padding: 4px 8px; font-weight: 700;">✅ Approved & Settled</span>';
+      } else if (w.status === 'REJECTED') {
+        statusBadge = '<span class="badge badge-danger" style="padding: 4px 8px; font-weight: 700;">❌ Rejected by Vendor</span>';
+      } else {
+        statusBadge = `<span class="badge badge-default">${w.status}</span>`;
+      }
+
+      // Admin Payment Proof Details
+      let paymentInfoHtml = '<span class="text-muted" style="font-size: 0.8rem;">--</span>';
+      if (w.adminPaymentDetails?.transactionId) {
+        const proofLink = w.adminPaymentDetails.paymentProof
+          ? `<a href="${w.adminPaymentDetails.paymentProof}" target="_blank" style="color: var(--primary); text-decoration: underline; font-size: 0.75rem;">🖼️ View Proof</a>`
+          : '';
+        const payDate = w.adminPaymentDetails.paidAt ? new Date(w.adminPaymentDetails.paidAt).toLocaleDateString('en-IN') : '';
+
+        paymentInfoHtml = `
+          <div style="font-size: 0.8rem;">
+            <code>${w.adminPaymentDetails.transactionId}</code><br>
+            ${proofLink} ${payDate ? `<small class="text-muted">(${payDate})</small>` : ''}
+          </div>
+        `;
+      }
+
+      // Actions Column
+      let actionButtons = `
+        <button class="btn btn-sm btn-secondary" onclick="openAdminWithdrawalDetailModal('${w._id}')" title="View Full Lifecycle Details">🔍 Details</button>
+      `;
+
+      if (w.status === 'PENDING_ADMIN_PAYMENT') {
+        actionButtons = `
+          <button class="btn btn-sm btn-primary" onclick="openAdminPayWithdrawalModal('${w._id}')" style="font-weight: 700;">💳 Pay & Send Proof</button>
+          <button class="btn btn-sm btn-secondary" onclick="openAdminWithdrawalDetailModal('${w._id}')">🔍</button>
+        `;
+      }
+
+      return `
+        <tr>
+          <td><code style="font-weight: 700; color: #4338ca;">${w.withdrawalId || w._id.slice(-8)}</code></td>
+          <td>
+            <strong>${vendorName}</strong><br>
+            <small class="text-muted">${vendorEmail}</small><br>
+            <small class="text-muted">📱 ${vendorMobile}</small>
+          </td>
+          <td style="font-weight: 800; font-size: 1.05rem; color: #059669;">${amountStr}</td>
+          <td>${destHtml}</td>
+          <td>${statusBadge}</td>
+          <td>${paymentInfoHtml}</td>
+          <td><small class="text-muted">${dateStr}</small></td>
+          <td>
+            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+              ${actionButtons}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No vendor withdrawal requests match the selected filter.</td></tr>';
+  }
+}
+
+/**
+ * Open Admin Send Payment & Proof Modal
+ */
+async function openAdminPayWithdrawalModal(withdrawalId) {
+  let w = adminWithdrawalsCache.find(x => x._id === withdrawalId || x.withdrawalId === withdrawalId);
+  
+  if (!w) {
+    try {
+      const res = await fetch(`${API_BASE}/admin/withdrawals/${withdrawalId}`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      const data = await res.json();
+      if (data.success && data.data?.withdrawal) {
+        w = data.data.withdrawal;
+      }
+    } catch (e) {
+      console.error('Failed to fetch withdrawal for payout modal:', e);
+    }
+  }
+
+  if (!w) {
+    showToast('Withdrawal details not found', 'error');
+    return;
+  }
+
+  document.getElementById('adminPayWithdrawalId').value = w._id;
+  document.getElementById('adminPayTxnId').value = '';
+  document.getElementById('adminPayProofFile').value = '';
+  document.getElementById('adminPayNotes').value = '';
+
+  const vendorName = w.vendorId ? `${w.vendorId.firstName || ''} ${w.vendorId.lastName || ''} (${w.vendorId.email || ''})`.trim() : 'Vendor';
+  const isBank = w.destinationType === 'bank';
+  
+  let destSummary = '';
+  if (isBank) {
+    destSummary = `
+      <strong>Bank Name:</strong> ${w.destinationDetails?.bankName || 'N/A'}<br>
+      <strong>Account Number:</strong> <code style="font-size: 1rem; font-weight: 700;">${w.destinationDetails?.accountNumber || 'N/A'}</code><br>
+      <strong>IFSC Code:</strong> <code>${w.destinationDetails?.ifscCode || 'N/A'}</code><br>
+      <strong>Account Holder:</strong> ${w.destinationDetails?.accountHolderName || 'N/A'}
+      ${w.destinationDetails?.branchName ? `<br><strong>Branch:</strong> ${w.destinationDetails.branchName}` : ''}
+    `;
+  } else {
+    destSummary = `
+      <strong>Wallet / App:</strong> ${w.destinationDetails?.walletName || 'UPI'}<br>
+      <strong>UPI ID / VPA:</strong> <code style="font-size: 1.05rem; font-weight: 700; color: #4338ca;">${w.destinationDetails?.walletId || 'N/A'}</code>
+    `;
+  }
+
+  document.getElementById('adminPayWithdrawalInfo').innerHTML = `
+    <div style="margin-bottom: 0.5rem;">
+      <strong>Vendor:</strong> ${vendorName}<br>
+      <strong>Withdrawal ID:</strong> <code>${w.withdrawalId || w._id}</code><br>
+      <strong>Payout Amount:</strong> <span style="font-size: 1.25rem; font-weight: 800; color: #059669;">₹${(w.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+    </div>
+    <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem; font-size: 0.85rem;">
+      <div style="font-weight: 700; color: #1e293b; margin-bottom: 0.35rem;">🏦 Transfer Funds To:</div>
+      ${destSummary}
+    </div>
+    ${w.notes ? `<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #64748b;"><strong>Vendor Note:</strong> <em>${w.notes}</em></div>` : ''}
+  `;
+
+  document.getElementById('adminPayWithdrawalModal').classList.remove('hidden');
+}
+
+function closeAdminPayWithdrawalModal() {
+  document.getElementById('adminPayWithdrawalModal').classList.add('hidden');
+}
+
+/**
+ * Handle Admin Submit Withdrawal Payment Proof
+ */
+async function handleAdminSubmitWithdrawalPayment(event) {
+  event.preventDefault();
+
+  const withdrawalId = document.getElementById('adminPayWithdrawalId').value;
+  const transactionId = document.getElementById('adminPayTxnId').value.trim();
+  const fileInput = document.getElementById('adminPayProofFile');
+  const adminNotes = document.getElementById('adminPayNotes').value.trim();
+  const submitBtn = document.getElementById('btnAdminSubmitWithdrawalPay');
+
+  if (!transactionId) {
+    showToast('Please enter the Bank UTR / Transaction ID', 'error');
+    return;
+  }
+
+  if (!fileInput.files || fileInput.files.length === 0) {
+    showToast('Please select a payment screenshot proof image', 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('transactionId', transactionId);
+  formData.append('paymentProof', fileInput.files[0]);
+  if (adminNotes) {
+    formData.append('adminNotes', adminNotes);
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = '⏳ Uploading Proof to Cloudinary...';
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/withdrawals/${withdrawalId}/send-payment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Payment proof sent to vendor! Vendor can now confirm and settle payout.', 'success');
+      closeAdminPayWithdrawalModal();
+      fetchAdminWithdrawals(withdrawalCurrentPage);
+    } else {
+      showToast(data.message || 'Failed to submit withdrawal payment', 'error');
+    }
+  } catch (err) {
+    console.error('handleAdminSubmitWithdrawalPayment error:', err);
+    showToast('Failed to connect to server', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '🚀 Submit Payment & Notify Vendor';
+  }
+}
+
+/**
+ * Open Admin Withdrawal Full Details Modal
+ */
+async function openAdminWithdrawalDetailModal(withdrawalId) {
+  const content = document.getElementById('modalAdminWithdrawalDetailContent');
+  if (!content) return;
+
+  content.innerHTML = `
+    <div style="text-align: center; padding: 2rem;">
+      <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⏳</div>
+      <p class="text-muted">Loading full payout lifecycle & audit trail...</p>
+    </div>
+  `;
+  document.getElementById('adminWithdrawalDetailModal').classList.remove('hidden');
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/withdrawals/${withdrawalId}`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (!data.success || !data.data?.withdrawal) {
+      content.innerHTML = `<p class="empty-state" style="color: #dc2626;">Failed to load details: ${data.message || 'Unknown error'}</p>`;
+      return;
+    }
+
+    const w = data.data.withdrawal;
+    const vendorName = w.vendorId ? `${w.vendorId.firstName} ${w.vendorId.lastName} (${w.vendorId.email})` : 'Vendor';
+    const isBank = w.destinationType === 'bank';
+
+    // Status Timeline Steps
+    const step1Done = true;
+    const step2Done = w.status === 'PAYMENT_SENT_BY_ADMIN' || w.status === 'APPROVED' || w.status === 'REJECTED';
+    const step3Approved = w.status === 'APPROVED';
+    const step3Rejected = w.status === 'REJECTED';
+
+    let timelineHtml = `
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; font-size: 0.8rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
+        <div style="flex: 1; text-align: center; padding: 0.5rem; border-radius: 6px; background: ${step1Done ? '#ecfdf5' : '#f1f5f9'}; border: 1px solid ${step1Done ? '#10b981' : '#cbd5e1'};">
+          <strong>1. Request Submitted</strong><br>
+          <small class="text-muted">${new Date(w.createdAt).toLocaleDateString('en-IN')}</small>
+        </div>
+        <div style="align-self: center; font-weight: 700; color: #94a3b8;">➔</div>
+        <div style="flex: 1; text-align: center; padding: 0.5rem; border-radius: 6px; background: ${step2Done ? '#eff6ff' : '#f1f5f9'}; border: 1px solid ${step2Done ? '#3b82f6' : '#cbd5e1'};">
+          <strong>2. Admin Paid & Proof</strong><br>
+          <small class="text-muted">${w.adminPaymentDetails?.paidAt ? new Date(w.adminPaymentDetails.paidAt).toLocaleDateString('en-IN') : 'Pending'}</small>
+        </div>
+        <div style="align-self: center; font-weight: 700; color: #94a3b8;">➔</div>
+        <div style="flex: 1; text-align: center; padding: 0.5rem; border-radius: 6px; background: ${step3Approved ? '#f0fdf4' : (step3Rejected ? '#fef2f2' : '#f1f5f9')}; border: 1px solid ${step3Approved ? '#22c55e' : (step3Rejected ? '#ef4444' : '#cbd5e1')};">
+          <strong>3. Vendor Confirmation</strong><br>
+          <small class="text-muted">${step3Approved ? '✅ Verified & Settled' : (step3Rejected ? '❌ Rejected' : 'Awaiting Vendor')}</small>
+        </div>
+      </div>
+    `;
+
+    // Destination Box
+    let destBox = '';
+    if (isBank) {
+      destBox = `
+        <div class="info-box mb-3">
+          <div style="font-weight: 700; color: #1e293b; margin-bottom: 0.25rem;">🏦 Bank Account Details:</div>
+          <strong>Bank:</strong> ${w.destinationDetails?.bankName || '--'}<br>
+          <strong>Account Number:</strong> <code>${w.destinationDetails?.accountNumber || '--'}</code><br>
+          <strong>IFSC:</strong> <code>${w.destinationDetails?.ifscCode || '--'}</code><br>
+          <strong>Account Holder:</strong> ${w.destinationDetails?.accountHolderName || '--'}<br>
+          <strong>Branch:</strong> ${w.destinationDetails?.branchName || 'N/A'}<br>
+          <span class="badge ${w.isManualDestination ? 'badge-warning' : 'badge-default'}" style="margin-top: 0.35rem;">${w.isManualDestination ? 'Manual Destination' : 'Saved Profile Account'}</span>
+        </div>
+      `;
+    } else {
+      destBox = `
+        <div class="info-box mb-3">
+          <div style="font-weight: 700; color: #1e293b; margin-bottom: 0.25rem;">👛 UPI / Wallet Details:</div>
+          <strong>Wallet / App Name:</strong> ${w.destinationDetails?.walletName || '--'}<br>
+          <strong>UPI ID / VPA:</strong> <code style="font-size: 1rem; font-weight: 700;">${w.destinationDetails?.walletId || '--'}</code><br>
+          <span class="badge ${w.isManualDestination ? 'badge-warning' : 'badge-default'}" style="margin-top: 0.35rem;">${w.isManualDestination ? 'Manual Destination' : 'Saved Profile Wallet'}</span>
+        </div>
+      `;
+    }
+
+    // Admin Payment Box
+    let adminPayBox = '';
+    if (w.adminPaymentDetails?.transactionId) {
+      adminPayBox = `
+        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+          <h4 style="font-size: 0.95rem; color: #166534; margin: 0 0 0.5rem 0;">💳 Admin Payment Details & Proof</h4>
+          <strong>Bank UTR / Reference:</strong> <code>${w.adminPaymentDetails.transactionId}</code><br>
+          <strong>Payment Processed At:</strong> ${new Date(w.adminPaymentDetails.paidAt).toLocaleString('en-IN')}<br>
+          ${w.adminPaymentDetails.adminNotes ? `<strong>Admin Notes:</strong> <em>${w.adminPaymentDetails.adminNotes}</em><br>` : ''}
+          ${w.adminPaymentDetails.paymentProof ? `
+            <div style="margin-top: 0.75rem;">
+              <label style="font-size: 0.8rem; font-weight: 700; color: #166534;">Payment Proof Screenshot (Cloudinary):</label><br>
+              <a href="${w.adminPaymentDetails.paymentProof}" target="_blank">
+                <img src="${w.adminPaymentDetails.paymentProof}" alt="Payment Proof" style="max-width: 100%; max-height: 220px; object-fit: contain; border: 1px solid #bbf7d0; border-radius: 6px; padding: 4px; background: #fff;">
+              </a>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    // Vendor Confirmation Box
+    let vendorConfBox = '';
+    if (w.vendorConfirmation?.confirmedAt) {
+      const isApproved = w.vendorConfirmation.isApproved;
+      vendorConfBox = `
+        <div style="background: ${isApproved ? '#f0fdf4' : '#fef2f2'}; border: 1px solid ${isApproved ? '#86efac' : '#fecaca'}; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+          <h4 style="font-size: 0.95rem; color: ${isApproved ? '#166534' : '#991b1b'}; margin: 0 0 0.5rem 0;">
+            ${isApproved ? '✅ Vendor Received & Approved Payout' : '❌ Vendor Reported Payout Not Received'}
+          </h4>
+          <strong>Decision:</strong> ${isApproved ? 'FUNDS RECEIVED' : 'REJECTED'}<br>
+          <strong>Confirmed Date:</strong> ${new Date(w.vendorConfirmation.confirmedAt).toLocaleString('en-IN')}<br>
+          ${w.vendorConfirmation.vendorNotes ? `<strong>Vendor Notes:</strong> <em>${w.vendorConfirmation.vendorNotes}</em><br>` : ''}
+          ${w.vendorConfirmation.rejectionReason ? `<strong>Rejection Reason:</strong> <span style="color: #dc2626;">${w.vendorConfirmation.rejectionReason}</span><br>` : ''}
+        </div>
+      `;
+    }
+
+    // Financial Settlement Box
+    let settlementBox = '';
+    if (w.financialSettlement?.isSettled) {
+      settlementBox = `
+        <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #93c5fd; border-radius: 8px; padding: 0.85rem;">
+          <h4 style="font-size: 0.95rem; color: #1e40af; margin: 0 0 0.5rem 0;">💰 Authoritative Financial Ledger Settlement</h4>
+          <strong>Deducted from Commission Wallet:</strong> <span style="color: #1e40af; font-weight: 700;">₹${(w.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span><br>
+          <strong>Settled Timestamp:</strong> ${new Date(w.financialSettlement.settledAt).toLocaleString('en-IN')}<br>
+          ${w.financialSettlement.walletTransactionId ? `<strong>Wallet Transaction ID:</strong> <code>${w.financialSettlement.walletTransactionId}</code>` : ''}
+        </div>
+      `;
+    }
+
+    content.innerHTML = `
+      ${timelineHtml}
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem;">
+        <div class="info-card">
+          <span class="label">Withdrawal ID</span>
+          <code style="font-weight: 700; color: #4338ca;">${w.withdrawalId}</code>
+        </div>
+        <div class="info-card">
+          <span class="label">Requested Amount</span>
+          <span class="value" style="font-size: 1.15rem; font-weight: 800; color: #059669;">₹${(w.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+        </div>
+        <div class="info-card">
+          <span class="label">Vendor Name</span>
+          <span class="value">${vendorName}</span>
+        </div>
+        <div class="info-card">
+          <span class="label">Current Status</span>
+          <div><span class="badge badge-${w.status}">${w.status.replace(/_/g, ' ')}</span></div>
+        </div>
+      </div>
+
+      ${destBox}
+      ${adminPayBox}
+      ${vendorConfBox}
+      ${settlementBox}
+    `;
+
+  } catch (err) {
+    console.error('openAdminWithdrawalDetailModal error:', err);
+    content.innerHTML = `<p class="empty-state" style="color: #dc2626;">Network error loading withdrawal details.</p>`;
+  }
+}
+
+function closeAdminWithdrawalDetailModal() {
+  document.getElementById('adminWithdrawalDetailModal').classList.add('hidden');
+}
+
 
 
