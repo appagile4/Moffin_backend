@@ -512,6 +512,12 @@ async function runTests() {
   if (typeof runClientBankAndWalletTests === 'function') {
     await runClientBankAndWalletTests();
   }
+
+  // Run Client Withdrawals & Admin Commission Settlement Test Suite
+  const { runClientWithdrawalTests } = require('./clientWithdrawalTests');
+  if (typeof runClientWithdrawalTests === 'function') {
+    await runClientWithdrawalTests();
+  }
 }
 
 runTests().catch((err) => {

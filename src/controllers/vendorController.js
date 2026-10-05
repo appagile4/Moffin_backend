@@ -213,12 +213,26 @@ const getVendorProfile = async (req, res) => {
       return sendError(res, 400, 'Invalid authenticated vendor ID');
     }
 
-    const vendor = await Vendor.findById(vendorId);
+    const { recalculateVendorMonthlyTier } = require('../services/tierCalculationService');
+    const monthlyRecord = await recalculateVendorMonthlyTier(vendorId);
+
+    const vendor = await Vendor.findById(vendorId).populate('currentTierId');
     if (!vendor) {
       return sendError(res, 404, 'Vendor profile not found');
     }
 
-    return sendSuccess(res, 200, 'Vendor profile retrieved successfully', { vendor });
+    const vendorObj = vendor.toObject();
+    if (monthlyRecord) {
+      vendorObj.currentTierDisplayName = monthlyRecord.currentTierDisplayName || monthlyRecord.currentTierName;
+      vendorObj.currentTierName = monthlyRecord.currentTierName;
+      vendorObj.currentTier = vendorObj.currentTierDisplayName;
+      vendorObj.effectiveCommissionRate = monthlyRecord.effectiveCommissionRate;
+      vendorObj.commissionMode = monthlyRecord.commissionMode;
+      vendorObj.manualCommissionRate = monthlyRecord.manualCommissionRate;
+      vendorObj.totalMonthlyTopUp = monthlyRecord.totalTopUp;
+    }
+
+    return sendSuccess(res, 200, 'Vendor profile retrieved successfully', { vendor: vendorObj });
   } catch (error) {
     console.error('getVendorProfile Error:', error);
     return sendError(res, 500, error.message || 'Internal server error while retrieving profile');

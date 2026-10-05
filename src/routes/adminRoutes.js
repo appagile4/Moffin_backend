@@ -82,6 +82,14 @@ const {
   adminSendWithdrawalPayment
 } = require('../controllers/withdrawalController');
 
+// Client Withdrawals Management
+const {
+  adminGetClientWithdrawals,
+  adminGetClientWithdrawalById,
+  adminSendClientWithdrawalPayment,
+  adminGetProfitAnalytics
+} = require('../controllers/clientWithdrawalController');
+
 // Middleware
 const {
   authMiddleware,
@@ -199,6 +207,24 @@ router.post(
   upload.single('paymentProof'),
   adminSendWithdrawalPayment
 );
+
+// =============================================================================
+// 10B. CLIENT WITHDRAWALS & PAYOUT MANAGEMENT
+// =============================================================================
+router.get('/client-withdrawals', authMiddleware, adminAuth, adminGetClientWithdrawals);
+router.get('/client-withdrawals/:id', authMiddleware, adminAuth, adminGetClientWithdrawalById);
+router.post(
+  '/client-withdrawals/:id/send-payment',
+  authMiddleware,
+  superAdminAuth,
+  upload.single('paymentProof'),
+  adminSendClientWithdrawalPayment
+);
+
+// =============================================================================
+// 10C. ADMIN PROFIT & COMMISSION ANALYTICS
+// =============================================================================
+router.get('/profits', authMiddleware, adminAuth, adminGetProfitAnalytics);
 
 // =============================================================================
 // 11. AUDIT LOGS

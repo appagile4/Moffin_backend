@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Client = require('../models/clientModel');
+const ClientTransaction = require('../models/clientTransactionModel');
+const ClientWithdrawal = require('../models/clientWithdrawalModel');
 const { logAction } = require('../services/auditService');
 
 /**
@@ -282,7 +284,46 @@ const getClientProfile = async (req, res) => {
       return sendError(res, 404, 'Client profile not found');
     }
 
+    const clientObjId = new mongoose.Types.ObjectId(clientId);
+
+    const [earningsAgg, withdrawalsAgg] = await Promise.all([
+      ClientTransaction.aggregate([
+        {
+          $match: {
+            clientId: clientObjId,
+            status: { $in: ['APPROVED', 'COMPLETED'] }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalEarnings: {
+              $sum: {
+                $ifNull: ['$approvedAmount', { $ifNull: ['$submittedAmount', '$requestedAmount'] }]
+              }
+            }
+          }
+        }
+      ]),
+      ClientWithdrawal.aggregate([
+        {
+          $match: {
+            clientId: clientObjId,
+            status: 'APPROVED'
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalWithdrawn: { $sum: '$amount' }
+          }
+        }
+      ])
+    ]);
+
     const safeClient = getSafeClient(client);
+    safeClient.totalEarnings = earningsAgg[0]?.totalEarnings || 0;
+    safeClient.totalWithdrawn = withdrawalsAgg[0]?.totalWithdrawn || 0;
 
     return sendSuccess(res, 200, 'Client profile retrieved successfully', {
       client: safeClient

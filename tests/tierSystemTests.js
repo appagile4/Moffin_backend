@@ -344,6 +344,15 @@ async function runTierTests() {
     'Admin Monthly Analytics returns accurate totals, top vendors, and tier distribution'
   );
 
+  // Cleanup test documents
+  await VendorMonthlyTier.deleteMany({ vendorId: vendor1._id });
+  await PaymentConfirmation.deleteMany({ vendorId: vendor1._id });
+  await TopUpRequest.deleteMany({ vendorId: vendor1._id });
+  await WalletTransaction.deleteMany({ vendorId: vendor1._id });
+  await TierMovementLog.deleteMany({ vendorId: vendor1._id });
+  await Vendor.deleteMany({ _id: vendor1._id });
+  await Admin.deleteMany({ _id: testAdmin._id });
+
   console.log('\n====================================================');
   console.log(`📊 TIER SUITE RESULTS: ${passedTests}/${totalTests} PASSED (${Math.round((passedTests / totalTests) * 100)}%)`);
   console.log('====================================================\n');

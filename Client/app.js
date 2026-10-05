@@ -88,7 +88,10 @@ function switchTab(tabId, btnEl = null) {
     if (defaultBtn) defaultBtn.classList.add('active');
   }
 
-  if (tabId === 'walletTab') fetchVendorWalletAndLedger();
+  if (tabId === 'walletTab') {
+    fetchVendorWalletAndLedger();
+    fetchVendorTierProgress();
+  }
   if (tabId === 'withdrawalsTab') {
     fetchVendorWithdrawals();
     populateWithdrawDestinationOptions();
@@ -100,7 +103,10 @@ function switchTab(tabId, btnEl = null) {
     fetchVendorTierMovements();
     fetchVendorTierHistory();
   }
-  if (tabId === 'topupsTab') fetchVendorTopUps();
+  if (tabId === 'topupsTab') {
+    fetchVendorTopUps();
+    fetchVendorTierProgress();
+  }
   if (tabId === 'banksTab') fetchBankAccounts();
   if (tabId === 'walletsTab') fetchWallets();
   if (tabId === 'incomingPaymentsTab') fetchVendorPaymentRequests();
@@ -239,6 +245,24 @@ function renderDashboardOverview() {
   const activeBadge = document.getElementById('dashActiveBadge');
   activeBadge.textContent = currentVendor.isActive ? 'Active' : 'Deactivated';
   activeBadge.className = `badge ${currentVendor.isActive ? 'badge-active' : 'badge-rejected'}`;
+
+  // Overview Tier & Commission Badges
+  const tierDisplayName = currentVendor.currentTierDisplayName || currentVendor.currentTierName || currentVendor.currentTier || 'Bronze V';
+  const effectiveRate = currentVendor.effectiveCommissionRate !== undefined ? currentVendor.effectiveCommissionRate : 1.0;
+  const isManual = currentVendor.commissionMode === 'MANUAL';
+
+  const dashTierBadge = document.getElementById('dashTierBadge');
+  if (dashTierBadge) {
+    dashTierBadge.textContent = tierDisplayName;
+    dashTierBadge.className = `badge ${getTierBadgeClass('', tierDisplayName)}`;
+  }
+
+  const dashCommissionBadge = document.getElementById('dashCommissionBadge');
+  if (dashCommissionBadge) {
+    const modeSuffix = isManual ? ' (MANUAL)' : '';
+    dashCommissionBadge.textContent = `${effectiveRate}%${modeSuffix}`;
+    dashCommissionBadge.className = `badge ${isManual ? 'badge-mode-manual' : 'badge-info'}`;
+  }
 
   // Pre-fill profile fields
   document.getElementById('profFirstName').value = currentVendor.firstName || '';

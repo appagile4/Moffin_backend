@@ -168,6 +168,43 @@ const vendorSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
       index: true
+    },
+
+    // 4. Tier Progression & Dynamic Commission Rates
+    currentTierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'VendorTier',
+      default: null
+    },
+    currentTier: {
+      type: String,
+      default: 'Bronze V'
+    },
+    currentTierName: {
+      type: String,
+      default: 'Bronze V'
+    },
+    currentTierDisplayName: {
+      type: String,
+      default: 'Bronze V'
+    },
+    commissionMode: {
+      type: String,
+      enum: ['AUTO', 'MANUAL'],
+      default: 'AUTO'
+    },
+    manualCommissionRate: {
+      type: Number,
+      default: null
+    },
+    manualCommissionReason: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    effectiveCommissionRate: {
+      type: Number,
+      default: 1.0
     }
   },
   {

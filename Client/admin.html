@@ -191,6 +191,15 @@
           </button>
           <button
             class="tab-btn"
+            onclick="switchAdminTab('clientWithdrawalsManagementTab')"
+          >
+            💸 Client Withdrawals
+          </button>
+          <button class="tab-btn" onclick="switchAdminTab('profitsTab')">
+            📈 Profits
+          </button>
+          <button
+            class="tab-btn"
             onclick="switchAdminTab('withdrawalsManagementTab')"
           >
             💸 Vendor Withdrawals
@@ -839,11 +848,20 @@
                 <div>
                   <h3>🎯 Live FCFS Priority Queue & Vendor Allocation</h3>
                   <p class="subtitle">
-                    Ordered by earliest approved top-up. Re-topping up moves a vendor to the end of the queue.
+                    Ordered by earliest approved top-up. Re-topping up moves a
+                    vendor to the end of the queue.
                   </p>
                 </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <span class="badge badge-info" id="fcfsTotalCountBadge" style="font-size: 0.85rem; padding: 6px 12px; font-weight: 700;">
+                <div style="display: flex; gap: 8px; align-items: center">
+                  <span
+                    class="badge badge-info"
+                    id="fcfsTotalCountBadge"
+                    style="
+                      font-size: 0.85rem;
+                      padding: 6px 12px;
+                      font-weight: 700;
+                    "
+                  >
                     Total Vendors: Loading...
                   </span>
                   <button
@@ -856,21 +874,42 @@
               </div>
 
               <!-- FCFS Explanation Banner -->
-              <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(99, 102, 241, 0.03)); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.85rem; line-height: 1.5; color: #4338ca;">
-                <strong>💡 FCFS Queue Rule:</strong> Top priority (<strong>Rank #1</strong>) is held by the vendor who had the earliest approved top-up. When any vendor completes another qualifying approved top-up, they automatically rotate to the <strong>last position</strong> (end of queue). Client payment allocation and confirmations do not alter queue ordering.
+              <div
+                style="
+                  background: linear-gradient(
+                    135deg,
+                    rgba(79, 70, 229, 0.08),
+                    rgba(99, 102, 241, 0.03)
+                  );
+                  border: 1px solid rgba(99, 102, 241, 0.2);
+                  border-radius: 10px;
+                  padding: 12px 16px;
+                  margin-bottom: 16px;
+                  font-size: 0.85rem;
+                  line-height: 1.5;
+                  color: #4338ca;
+                "
+              >
+                <strong>💡 FCFS Queue Rule:</strong> Top priority (<strong
+                  >Rank #1</strong
+                >) is held by the vendor who had the earliest approved top-up.
+                When any vendor completes another qualifying approved top-up,
+                they automatically rotate to the
+                <strong>last position</strong> (end of queue). Client payment
+                allocation and confirmations do not alter queue ordering.
               </div>
 
               <div style="overflow-x: auto">
                 <table class="custom-table">
                   <thead>
                     <tr>
-                      <th style="width: 100px;">Priority Rank</th>
+                      <th style="width: 100px">Priority Rank</th>
                       <th>Vendor Profile</th>
                       <th>Wallet Balance</th>
                       <th>Bank Details</th>
                       <th>Wallets / UPI</th>
                       <th>Eligibility & Status</th>
-                      <th style="width: 130px;">Reorder</th>
+                      <th style="width: 130px">Reorder</th>
                     </tr>
                   </thead>
                   <tbody id="adminFcfsTbody">
@@ -881,27 +920,6 @@
                     </tr>
                   </tbody>
                 </table>
-              </div>
-            </div>
-
-            <!-- Commission Tiers -->
-            <div class="card">
-              <div class="card-header flex-between">
-                <div>
-                  <h3>🏷️ Commission Tiers</h3>
-                  <p class="subtitle">
-                    System tier rates applied to transactions
-                  </p>
-                </div>
-                <button
-                  class="btn btn-sm btn-secondary"
-                  onclick="fetchAdminTiers()"
-                >
-                  🔄 Refresh
-                </button>
-              </div>
-              <div id="adminTiersList" class="items-list">
-                <p class="empty-state">Loading tiers...</p>
               </div>
             </div>
           </div>
@@ -958,23 +976,48 @@
             </div>
             <div class="stat-card" style="border-left: 4px solid #10b981">
               <span class="stat-title">Active Clients</span>
-              <span class="stat-value" id="statActiveClients" style="color: #059669">0</span>
+              <span
+                class="stat-value"
+                id="statActiveClients"
+                style="color: #059669"
+                >0</span
+              >
             </div>
             <div class="stat-card" style="border-left: 4px solid #64748b">
               <span class="stat-title">Inactive Clients</span>
-              <span class="stat-value" id="statInactiveClients" style="color: #64748b">0</span>
+              <span
+                class="stat-value"
+                id="statInactiveClients"
+                style="color: #64748b"
+                >0</span
+              >
             </div>
             <div class="stat-card" style="border-left: 4px solid #ef4444">
               <span class="stat-title">Blocked Clients</span>
-              <span class="stat-value" id="statBlockedClients" style="color: #dc2626">0</span>
+              <span
+                class="stat-value"
+                id="statBlockedClients"
+                style="color: #dc2626"
+                >0</span
+              >
             </div>
             <div class="stat-card" style="border-left: 4px solid #0284c7">
               <span class="stat-title">Verified Clients</span>
-              <span class="stat-value" id="statVerifiedClients" style="color: #0284c7">0</span>
+              <span
+                class="stat-value"
+                id="statVerifiedClients"
+                style="color: #0284c7"
+                >0</span
+              >
             </div>
             <div class="stat-card" style="border-left: 4px solid #f59e0b">
               <span class="stat-title">Unverified</span>
-              <span class="stat-value" id="statUnverifiedClients" style="color: #d97706">0</span>
+              <span
+                class="stat-value"
+                id="statUnverifiedClients"
+                style="color: #d97706"
+                >0</span
+              >
             </div>
           </div>
 
@@ -984,12 +1027,16 @@
               <div>
                 <h3>👥 Registered Clients Management</h3>
                 <p class="subtitle">
-                  Search, monitor activity, and manage client account statuses in real-time
+                  Search, monitor activity, and manage client account statuses
+                  in real-time
                 </p>
               </div>
               <button
                 class="btn btn-sm btn-secondary"
-                onclick="fetchAdminClients(); fetchAdminClientStats();"
+                onclick="
+                  fetchAdminClients();
+                  fetchAdminClientStats();
+                "
               >
                 🔄 Refresh Clients
               </button>
@@ -1105,9 +1152,12 @@
           <div class="card mt-3">
             <div class="card-header flex-between">
               <div>
-                <h3>📜 All Client Payment Transactions & Vendor Allocation Ledger</h3>
+                <h3>
+                  📜 All Client Payment Transactions & Vendor Allocation Ledger
+                </h3>
                 <p class="subtitle">
-                  Live platform audit of all client payment requests, assigned vendors, tier ranks, commission % and amounts
+                  Live platform audit of all client payment requests, assigned
+                  vendors, tier ranks, commission % and amounts
                 </p>
               </div>
               <button
@@ -1120,21 +1170,61 @@
 
             <!-- Transaction KPI Strip -->
             <div class="stats-grid mb-3">
-              <div class="stat-card" style="border-left: 4px solid #4f46e5; padding: 12px 16px;">
-                <span class="stat-title" style="font-size: 0.75rem;">Total Volume</span>
-                <span class="stat-value" id="statClientTxVolume" style="font-size: 1.3rem; color: #4338ca;">₹0</span>
+              <div
+                class="stat-card"
+                style="border-left: 4px solid #4f46e5; padding: 12px 16px"
+              >
+                <span class="stat-title" style="font-size: 0.75rem"
+                  >Total Volume</span
+                >
+                <span
+                  class="stat-value"
+                  id="statClientTxVolume"
+                  style="font-size: 1.3rem; color: #4338ca"
+                  >₹0</span
+                >
               </div>
-              <div class="stat-card" style="border-left: 4px solid #10b981; padding: 12px 16px;">
-                <span class="stat-title" style="font-size: 0.75rem;">Total Settled / Approved</span>
-                <span class="stat-value" id="statClientTxApprovedVolume" style="font-size: 1.3rem; color: #059669;">₹0</span>
+              <div
+                class="stat-card"
+                style="border-left: 4px solid #10b981; padding: 12px 16px"
+              >
+                <span class="stat-title" style="font-size: 0.75rem"
+                  >Total Settled / Approved</span
+                >
+                <span
+                  class="stat-value"
+                  id="statClientTxApprovedVolume"
+                  style="font-size: 1.3rem; color: #059669"
+                  >₹0</span
+                >
               </div>
-              <div class="stat-card" style="border-left: 4px solid #9333ea; padding: 12px 16px;">
-                <span class="stat-title" style="font-size: 0.75rem;">Vendor Commission Generated</span>
-                <span class="stat-value" id="statClientTxCommissionVolume" style="font-size: 1.3rem; color: #7e22ce;">₹0</span>
+              <div
+                class="stat-card"
+                style="border-left: 4px solid #9333ea; padding: 12px 16px"
+              >
+                <span class="stat-title" style="font-size: 0.75rem"
+                  >Vendor Commission Generated</span
+                >
+                <span
+                  class="stat-value"
+                  id="statClientTxCommissionVolume"
+                  style="font-size: 1.3rem; color: #7e22ce"
+                  >₹0</span
+                >
               </div>
-              <div class="stat-card" style="border-left: 4px solid #f59e0b; padding: 12px 16px;">
-                <span class="stat-title" style="font-size: 0.75rem;">Pending Verifications</span>
-                <span class="stat-value" id="statClientTxPendingCount" style="font-size: 1.3rem; color: #d97706;">0</span>
+              <div
+                class="stat-card"
+                style="border-left: 4px solid #f59e0b; padding: 12px 16px"
+              >
+                <span class="stat-title" style="font-size: 0.75rem"
+                  >Pending Verifications</span
+                >
+                <span
+                  class="stat-value"
+                  id="statClientTxPendingCount"
+                  style="font-size: 1.3rem; color: #d97706"
+                  >0</span
+                >
               </div>
             </div>
 
@@ -1147,7 +1237,14 @@
                 placeholder="🔍 Search by Tx ID, Client, Vendor, Tier, UTR..."
                 oninput="handleClientTxSearch()"
               />
-              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <div
+                style="
+                  display: flex;
+                  gap: 0.5rem;
+                  align-items: center;
+                  flex-wrap: wrap;
+                "
+              >
                 <select
                   id="clientTxStatusFilter"
                   onchange="fetchAdminClientTransactions(1)"
@@ -1160,8 +1257,12 @@
                 >
                   <option value="">All Statuses</option>
                   <option value="APPROVED">✅ Approved / Completed</option>
-                  <option value="AWAITING_VENDOR_VERIFICATION">⏳ Awaiting Verification</option>
-                  <option value="ASSIGNED">⚡ Assigned / Pending Submission</option>
+                  <option value="AWAITING_VENDOR_VERIFICATION">
+                    ⏳ Awaiting Verification
+                  </option>
+                  <option value="ASSIGNED">
+                    ⚡ Assigned / Pending Submission
+                  </option>
                   <option value="REJECTED">❌ Rejected</option>
                 </select>
                 <button
@@ -1241,7 +1342,6 @@
               </div>
             </div>
           </div>
-
         </div>
 
         <!-- TAB 7: VENDOR COMMISSION WITHDRAWALS MANAGEMENT -->
@@ -1254,19 +1354,39 @@
             </div>
             <div class="stat-card" style="border-left: 4px solid #10b981">
               <span class="stat-title">Total Settled Volume</span>
-              <span class="stat-value" id="statSettledWithdrawalsVolume" style="color: #059669">₹0</span>
+              <span
+                class="stat-value"
+                id="statSettledWithdrawalsVolume"
+                style="color: #059669"
+                >₹0</span
+              >
             </div>
             <div class="stat-card" style="border-left: 4px solid #f59e0b">
               <span class="stat-title">⏳ Awaiting Admin Payment</span>
-              <span class="stat-value" id="statPendingAdminPaymentCount" style="color: #d97706">0</span>
+              <span
+                class="stat-value"
+                id="statPendingAdminPaymentCount"
+                style="color: #d97706"
+                >0</span
+              >
             </div>
             <div class="stat-card" style="border-left: 4px solid #0284c7">
               <span class="stat-title">💳 Sent (Awaiting Vendor)</span>
-              <span class="stat-value" id="statPaymentSentCount" style="color: #0284c7">0</span>
+              <span
+                class="stat-value"
+                id="statPaymentSentCount"
+                style="color: #0284c7"
+                >0</span
+              >
             </div>
             <div class="stat-card" style="border-left: 4px solid #16a34a">
               <span class="stat-title">✅ Approved & Deducted</span>
-              <span class="stat-value" id="statApprovedWithdrawalsCount" style="color: #16a34a">0</span>
+              <span
+                class="stat-value"
+                id="statApprovedWithdrawalsCount"
+                style="color: #16a34a"
+                >0</span
+              >
             </div>
           </div>
 
@@ -1276,7 +1396,8 @@
               <div>
                 <h3>💸 Vendor Commission Withdrawal Requests</h3>
                 <p class="subtitle">
-                  Process vendor payouts (Min ₹25,000), upload payment proof screenshots & UTRs, and track settlement
+                  Process vendor payouts (Min ₹25,000), upload payment proof
+                  screenshots & UTRs, and track settlement
                 </p>
               </div>
               <button
@@ -1289,7 +1410,10 @@
 
             <!-- Search and Filter Bar -->
             <div class="search-filter-bar">
-              <div class="tabs" style="margin-bottom: 0; border: none; flex-wrap: wrap">
+              <div
+                class="tabs"
+                style="margin-bottom: 0; border: none; flex-wrap: wrap"
+              >
                 <button
                   class="tab-btn active"
                   onclick="setAdminWithdrawalFilter('all', event)"
@@ -1298,13 +1422,17 @@
                 </button>
                 <button
                   class="tab-btn"
-                  onclick="setAdminWithdrawalFilter('PENDING_ADMIN_PAYMENT', event)"
+                  onclick="
+                    setAdminWithdrawalFilter('PENDING_ADMIN_PAYMENT', event)
+                  "
                 >
                   ⏳ Pending Payment
                 </button>
                 <button
                   class="tab-btn"
-                  onclick="setAdminWithdrawalFilter('PAYMENT_SENT_BY_ADMIN', event)"
+                  onclick="
+                    setAdminWithdrawalFilter('PAYMENT_SENT_BY_ADMIN', event)
+                  "
                 >
                   💳 Payment Sent
                 </button>
@@ -1391,6 +1519,492 @@
                   id="btnWithdrawalNextPage"
                   class="btn btn-sm btn-secondary"
                   onclick="changeWithdrawalPage(1)"
+                  disabled
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: CLIENT WITHDRAWALS & PAYOUT MANAGEMENT -->
+        <div id="clientWithdrawalsManagementTab" class="tab-content hidden">
+          <!-- Client Withdrawal Real-Time KPI Stats Cards -->
+          <div class="stats-grid mb-3">
+            <div class="stat-card" style="border-left: 4px solid #4f46e5">
+              <span class="stat-title">Total Client Requests</span>
+              <span class="stat-value" id="statTotalClientWithdrawalsCount"
+                >0</span
+              >
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #10b981">
+              <span class="stat-title">Total Settled Volume</span>
+              <span
+                class="stat-value"
+                id="statSettledClientWithdrawalsVolume"
+                style="color: #059669"
+                >₹0</span
+              >
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #9333ea">
+              <span class="stat-title">Admin Commission Cut</span>
+              <span
+                class="stat-value"
+                id="statTotalClientAdminCommission"
+                style="color: #7e22ce"
+                >₹0</span
+              >
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #f59e0b">
+              <span class="stat-title">⏳ Awaiting Admin Payment</span>
+              <span
+                class="stat-value"
+                id="statPendingAdminClientPaymentCount"
+                style="color: #d97706"
+                >0</span
+              >
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #0284c7">
+              <span class="stat-title">💳 Sent (Awaiting Client)</span>
+              <span
+                class="stat-value"
+                id="statPaymentSentClientCount"
+                style="color: #0284c7"
+                >0</span
+              >
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #16a34a">
+              <span class="stat-title">✅ Approved & Settled</span>
+              <span
+                class="stat-value"
+                id="statApprovedClientWithdrawalsCount"
+                style="color: #16a34a"
+                >0</span
+              >
+            </div>
+          </div>
+
+          <!-- Main Client Withdrawals Management Card -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>💸 Client Fund Withdrawal Requests & Payout Processing</h3>
+                <p class="subtitle">
+                  Review client requests, inspect client-to-vendor transaction
+                  history & commissions, apply admin commission cut, and upload
+                  payout proof
+                </p>
+              </div>
+              <button
+                class="btn btn-sm btn-secondary"
+                onclick="fetchAdminClientWithdrawals()"
+              >
+                🔄 Refresh Client Withdrawals
+              </button>
+            </div>
+
+            <!-- Search and Filter Bar -->
+            <div class="search-filter-bar">
+              <div
+                class="tabs"
+                style="margin-bottom: 0; border: none; flex-wrap: wrap"
+              >
+                <button
+                  class="tab-btn active"
+                  onclick="setAdminClientWithdrawalFilter('all', event)"
+                >
+                  All Requests
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="
+                    setAdminClientWithdrawalFilter(
+                      'PENDING_ADMIN_PAYMENT',
+                      event,
+                    )
+                  "
+                >
+                  ⏳ Pending Payment
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="
+                    setAdminClientWithdrawalFilter(
+                      'PAYMENT_SENT_BY_ADMIN',
+                      event,
+                    )
+                  "
+                >
+                  💳 Sent to Client
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminClientWithdrawalFilter('APPROVED', event)"
+                >
+                  ✅ Approved / Settled
+                </button>
+                <button
+                  class="tab-btn"
+                  onclick="setAdminClientWithdrawalFilter('REJECTED', event)"
+                >
+                  ❌ Rejected
+                </button>
+              </div>
+
+              <div class="search-input">
+                <input
+                  type="text"
+                  id="adminClientWithdrawalSearchInput"
+                  placeholder="🔍 Search by ID, Client Name, Email, UTR..."
+                  oninput="handleAdminClientWithdrawalSearch()"
+                />
+              </div>
+            </div>
+
+            <!-- Client Withdrawals Table -->
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Withdrawal ID & Date</th>
+                    <th>Client Profile</th>
+                    <th>Requested Amount</th>
+                    <th>Admin Commission Cut</th>
+                    <th>Net Amount Transferred</th>
+                    <th>Payout Destination</th>
+                    <th>Status</th>
+                    <th>UTR / Reference</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminClientWithdrawalsTbody">
+                  <tr>
+                    <td colspan="9" class="empty-state">
+                      Loading client withdrawal requests...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div
+              class="flex-between mt-3"
+              style="padding-top: 1rem; border-top: 1px solid var(--border)"
+            >
+              <span
+                id="clientWithdrawalPaginationInfo"
+                class="text-muted"
+                style="font-size: 0.9rem"
+                >Showing 0 of 0 requests</span
+              >
+              <div style="display: flex; gap: 0.5rem">
+                <button
+                  id="btnClientWithdrawalPrevPage"
+                  class="btn btn-sm btn-secondary"
+                  onclick="changeAdminClientWithdrawalPage(-1)"
+                  disabled
+                >
+                  ← Previous
+                </button>
+                <span
+                  id="clientWithdrawalPageIndicator"
+                  style="
+                    padding: 0.25rem 0.75rem;
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    align-self: center;
+                  "
+                  >Page 1</span
+                >
+                <button
+                  id="btnClientWithdrawalNextPage"
+                  class="btn btn-sm btn-secondary"
+                  onclick="changeAdminClientWithdrawalPage(1)"
+                  disabled
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: ADMIN PROFIT & COMMISSION ANALYTICS -->
+        <div id="profitsTab" class="tab-content hidden">
+          <!-- Profit KPI Stats Row -->
+          <div class="stats-grid mb-3">
+            <div class="stat-card" style="border-left: 4px solid #10b981">
+              <span class="stat-title">💰 Total Realized Admin Profit</span>
+              <span
+                class="stat-value"
+                id="statProfitRealized"
+                style="color: #059669"
+                >₹0.00</span
+              >
+              <small
+                class="text-muted"
+                style="font-size: 0.75rem; margin-top: 4px; display: block"
+              >
+                From
+                <span
+                  id="statProfitSettledCount"
+                  style="font-weight: 700; color: #047857"
+                  >0</span
+                >
+                approved client payouts
+              </small>
+            </div>
+
+            <div class="stat-card" style="border-left: 4px solid #f59e0b">
+              <span class="stat-title">⏳ Pending Admin Profit</span>
+              <span
+                class="stat-value"
+                id="statProfitPending"
+                style="color: #d97706"
+                >₹0.00</span
+              >
+              <small
+                class="text-muted"
+                style="font-size: 0.75rem; margin-top: 4px; display: block"
+              >
+                From
+                <span
+                  id="statProfitPendingCount"
+                  style="font-weight: 700; color: #b45309"
+                  >0</span
+                >
+                awaiting confirmation
+              </small>
+            </div>
+
+            <div class="stat-card" style="border-left: 4px solid #6366f1">
+              <span class="stat-title">📊 Settled Client Volume</span>
+              <span
+                class="stat-value"
+                id="statProfitSettledVolume"
+                style="color: #4f46e5"
+                >₹0.00</span
+              >
+              <small
+                class="text-muted"
+                style="font-size: 0.75rem; margin-top: 4px; display: block"
+              >
+                Gross withdrawal volume cleared
+              </small>
+            </div>
+
+            <div class="stat-card" style="border-left: 4px solid #0284c7">
+              <span class="stat-title">📈 Avg Admin Margin</span>
+              <span
+                class="stat-value"
+                id="statProfitAvgMargin"
+                style="color: #0284c7"
+                >0.00%</span
+              >
+              <small
+                class="text-muted"
+                style="font-size: 0.75rem; margin-top: 4px; display: block"
+              >
+                Across
+                <span
+                  id="statProfitableClientsCount"
+                  style="font-weight: 700; color: #0369a1"
+                  >0</span
+                >
+                active clients
+              </small>
+            </div>
+          </div>
+
+          <!-- SECTION 1: Client-Wise Profit Breakdown -->
+          <div class="card mb-3">
+            <div class="card-header flex-between">
+              <div>
+                <h3>👥 Client Profit Breakdown (Profit per Client)</h3>
+                <p class="subtitle">
+                  Cumulative summary of profits generated from each client's
+                  withdrawal settlements
+                </p>
+              </div>
+              <div style="display: flex; gap: 0.5rem; align-items: center">
+                <button
+                  class="btn btn-sm btn-secondary"
+                  onclick="fetchAdminProfits()"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Client</th>
+                    <th>Total Settlements</th>
+                    <th>Total Volume Settled</th>
+                    <th>Admin Profit Earned</th>
+                    <th>Avg Margin (%)</th>
+                    <th>Vendor Comm (Deducted)</th>
+                    <th>Net Paid to Client</th>
+                    <th>Last Settlement</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="adminClientProfitsSummaryTbody">
+                  <tr>
+                    <td colspan="9" class="empty-state">
+                      Loading client profit breakdown...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SECTION 2: Detailed Itemized Profit Ledger -->
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>📜 Itemized Profit & Commission Settlement Ledger</h3>
+                <p class="subtitle">
+                  Audit trail and calculation breakdown for every client
+                  withdrawal transaction
+                </p>
+              </div>
+            </div>
+
+            <!-- Filters Bar -->
+            <div
+              class="flex-between mb-3"
+              style="
+                background: #f8fafc;
+                padding: 0.75rem 1rem;
+                border-radius: 8px;
+                border: 1px solid var(--border);
+                gap: 1rem;
+                flex-wrap: wrap;
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  gap: 0.5rem;
+                  flex-wrap: wrap;
+                  align-items: center;
+                  flex: 1;
+                "
+              >
+                <input
+                  type="text"
+                  id="adminProfitSearchInput"
+                  placeholder="🔍 Search by client name, email, withdrawal ID, or UTR..."
+                  style="
+                    min-width: 280px;
+                    padding: 0.45rem 0.75rem;
+                    border: 1px solid var(--border);
+                    border-radius: 6px;
+                    font-size: 0.9rem;
+                    flex: 1;
+                  "
+                  oninput="handleAdminProfitSearch()"
+                />
+
+                <select
+                  id="adminProfitStatusFilter"
+                  style="
+                    padding: 0.45rem 0.75rem;
+                    border: 1px solid var(--border);
+                    border-radius: 6px;
+                    font-size: 0.9rem;
+                    background: #ffffff;
+                  "
+                  onchange="fetchAdminProfits(1)"
+                >
+                  <option value="all">All Settlements</option>
+                  <option value="APPROVED">✅ Settled & Approved Only</option>
+                  <option value="PAYMENT_SENT_BY_ADMIN">
+                    ⏳ Pending Confirmation Only
+                  </option>
+                </select>
+
+                <button
+                  id="adminProfitClearClientFilterBtn"
+                  class="btn btn-sm btn-secondary hidden"
+                  onclick="clearAdminProfitClientFilter()"
+                  style="display: inline-flex; align-items: center; gap: 4px"
+                >
+                  ✕ Clear Client Filter:
+                  <span
+                    id="adminProfitActiveClientTag"
+                    style="font-weight: 700"
+                  ></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Profit Ledger Table -->
+            <div style="overflow-x: auto">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Withdrawal ID & Date</th>
+                    <th>Client Details</th>
+                    <th>Gross Requested</th>
+                    <th>Admin Profit Cut</th>
+                    <th>Vendor Comm (Internal)</th>
+                    <th>Net Transferred</th>
+                    <th>Payment Destination & UTR</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="adminProfitLedgerTbody">
+                  <tr>
+                    <td colspan="9" class="empty-state">
+                      Loading profit ledger...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div
+              class="flex-between mt-3"
+              style="padding-top: 1rem; border-top: 1px solid var(--border)"
+            >
+              <span
+                id="adminProfitPaginationInfo"
+                class="text-muted"
+                style="font-size: 0.9rem"
+                >Showing 0 of 0 records</span
+              >
+              <div style="display: flex; gap: 0.5rem">
+                <button
+                  id="btnProfitPrevPage"
+                  class="btn btn-sm btn-secondary"
+                  onclick="changeAdminProfitPage(-1)"
+                  disabled
+                >
+                  ← Previous
+                </button>
+                <span
+                  id="adminProfitPageIndicator"
+                  style="
+                    padding: 0.25rem 0.75rem;
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    align-self: center;
+                  "
+                  >Page 1</span
+                >
+                <button
+                  id="btnProfitNextPage"
+                  class="btn btn-sm btn-secondary"
+                  onclick="changeAdminProfitPage(1)"
                   disabled
                 >
                   Next →
@@ -1987,7 +2601,9 @@
                 font-weight: 600;
               "
             >
-              <option value="active">🟢 Active (Allow login & operations)</option>
+              <option value="active">
+                🟢 Active (Allow login & operations)
+              </option>
               <option value="inactive">⚪ Inactive (Deactivate account)</option>
               <option value="blocked">🔴 Blocked (Block all access)</option>
             </select>
@@ -2028,7 +2644,10 @@
 
     <!-- MODAL 10: CLIENT DETAILS & FINANCIAL BREAKDOWN MODAL -->
     <div id="clientDetailModal" class="modal-backdrop hidden">
-      <div class="modal-card card" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+      <div
+        class="modal-card card"
+        style="max-width: 800px; max-height: 90vh; overflow-y: auto"
+      >
         <div class="card-header flex-between">
           <h3>🔍 Client Profile & Financial Overview</h3>
           <button
@@ -2074,7 +2693,10 @@
           <!-- Injected via JS -->
         </div>
 
-        <form id="adminPayWithdrawalForm" onsubmit="handleAdminSubmitWithdrawalPayment(event)">
+        <form
+          id="adminPayWithdrawalForm"
+          onsubmit="handleAdminSubmitWithdrawalPayment(event)"
+        >
           <input type="hidden" id="adminPayWithdrawalId" />
 
           <div class="form-group">
@@ -2084,7 +2706,7 @@
               id="adminPayTxnId"
               required
               placeholder="e.g. UTR1234567890 / IMPS / UPI Txn ID"
-              style="font-family: monospace; font-weight: 600;"
+              style="font-family: monospace; font-weight: 600"
             />
           </div>
 
@@ -2096,7 +2718,10 @@
               required
               accept="image/jpeg,image/png,image/webp,image/jpg"
             />
-            <small class="text-muted">Upload the screenshot of the completed bank or UPI transfer.</small>
+            <small class="text-muted"
+              >Upload the screenshot of the completed bank or UPI
+              transfer.</small
+            >
           </div>
 
           <div class="form-group">
@@ -2124,7 +2749,11 @@
             >
               Cancel
             </button>
-            <button type="submit" class="btn btn-primary" id="btnAdminSubmitWithdrawalPay">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              id="btnAdminSubmitWithdrawalPay"
+            >
               🚀 Submit Payment & Notify Vendor
             </button>
           </div>
@@ -2134,7 +2763,10 @@
 
     <!-- MODAL 12: WITHDRAWAL COMPREHENSIVE DETAIL MODAL -->
     <div id="adminWithdrawalDetailModal" class="modal-backdrop hidden">
-      <div class="modal-card card" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+      <div
+        class="modal-card card"
+        style="max-width: 680px; max-height: 90vh; overflow-y: auto"
+      >
         <div class="card-header flex-between">
           <h3>🔍 Payout Request Details & Settlement History</h3>
           <button
@@ -2159,6 +2791,659 @@
             Close
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- MODAL 13: PROCESS CLIENT WITHDRAWAL PAYOUT & TRANSACTION HISTORY -->
+    <div id="adminProcessClientWithdrawalModal" class="modal-backdrop hidden">
+      <div
+        class="modal-card card"
+        style="max-width: 850px; max-height: 90vh; overflow-y: auto"
+      >
+        <div class="card-header flex-between">
+          <div>
+            <h3
+              style="
+                color: #4338ca;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              "
+            >
+              💸 Process Client Withdrawal Payout
+            </h3>
+            <p class="subtitle" style="margin-top: 2px">
+              Review client-to-vendor transaction history, deduct admin
+              commission, and upload payment proof
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn-close"
+            onclick="closeAdminProcessClientWithdrawalModal()"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div
+          id="procClientStatusAlertBox"
+          class="hidden"
+          style="margin-bottom: 14px"
+        ></div>
+
+        <form
+          id="adminProcessClientWithdrawalForm"
+          onsubmit="handleAdminSubmitClientWithdrawalPayment(event)"
+        >
+          <input type="hidden" id="processClientWithdrawalId" />
+          <input type="hidden" id="processClientWithdrawalGrossAmount" />
+
+          <!-- SECTION 1: Client Overview & Payout Destination -->
+          <div
+            style="
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              padding: 14px;
+              margin-bottom: 16px;
+            "
+          >
+            <div
+              style="
+                font-weight: 700;
+                font-size: 0.85rem;
+                color: #475569;
+                text-transform: uppercase;
+                margin-bottom: 10px;
+              "
+            >
+              👤 Client & Withdrawal Request Info
+            </div>
+
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 12px;
+                font-size: 0.9rem;
+              "
+            >
+              <div>
+                <span
+                  class="text-muted"
+                  style="font-size: 0.75rem; text-transform: uppercase"
+                  >Client Profile</span
+                >
+                <div
+                  style="font-weight: 700; color: #1e293b"
+                  id="procClientName"
+                >
+                  --
+                </div>
+                <div
+                  style="font-size: 0.8rem; color: #64748b"
+                  id="procClientEmail"
+                >
+                  --
+                </div>
+              </div>
+
+              <div>
+                <span
+                  class="text-muted"
+                  style="font-size: 0.75rem; text-transform: uppercase"
+                  >Current Platform Balance</span
+                >
+                <div
+                  style="font-weight: 800; color: #059669; font-size: 1.1rem"
+                  id="procClientBalance"
+                >
+                  ₹0
+                </div>
+              </div>
+
+              <div>
+                <span
+                  class="text-muted"
+                  style="font-size: 0.75rem; text-transform: uppercase"
+                  >Requested Withdrawal</span
+                >
+                <div
+                  style="font-weight: 800; color: #4338ca; font-size: 1.25rem"
+                  id="procClientRequestedAmount"
+                >
+                  ₹0
+                </div>
+              </div>
+            </div>
+
+            <div
+              style="
+                margin-top: 12px;
+                padding-top: 10px;
+                border-top: 1px dashed #cbd5e1;
+              "
+            >
+              <span
+                class="text-muted"
+                style="
+                  font-size: 0.75rem;
+                  text-transform: uppercase;
+                  font-weight: 600;
+                "
+                >Payout Destination Details</span
+              >
+              <div
+                id="procClientDestinationDetails"
+                style="
+                  font-weight: 700;
+                  color: #0f172a;
+                  margin-top: 4px;
+                  font-size: 0.95rem;
+                "
+              >
+                --
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 2: Client-to-Vendor Transaction History & Vendor Commission Breakdown -->
+          <div
+            style="
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 14px;
+              margin-bottom: 16px;
+              background: #ffffff;
+            "
+          >
+            <div class="flex-between" style="margin-bottom: 10px">
+              <div>
+                <h4
+                  style="
+                    margin: 0;
+                    color: #1e293b;
+                    font-size: 0.95rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                  "
+                >
+                  📜 Client-to-Vendor Transaction History & Commission Breakdown
+                </h4>
+                <p
+                  style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b"
+                >
+                  Summary of all client top-ups/payments made to assigned
+                  vendors with commission rates & amounts
+                </p>
+              </div>
+              <div
+                style="
+                  text-align: right;
+                  background: #f3e8ff;
+                  border: 1px solid #d8b4fe;
+                  padding: 6px 12px;
+                  border-radius: 6px;
+                "
+              >
+                <span
+                  style="
+                    font-size: 0.72rem;
+                    color: #7e22ce;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                  "
+                  >Total Vendor Commission</span
+                >
+                <div
+                  style="font-size: 1.15rem; font-weight: 800; color: #6b21a8"
+                  id="procClientTotalVendorCommission"
+                >
+                  ₹0
+                </div>
+              </div>
+            </div>
+
+            <div
+              style="
+                max-height: 220px;
+                overflow-y: auto;
+                overflow-x: auto;
+                border: 1px solid #f1f5f9;
+                border-radius: 6px;
+              "
+            >
+              <table class="custom-table" style="font-size: 0.82rem; margin: 0">
+                <thead>
+                  <tr style="background: #f8fafc">
+                    <th style="padding: 6px 8px">Tx ID & Date</th>
+                    <th style="padding: 6px 8px">Assigned Vendor</th>
+                    <th style="padding: 6px 8px">Amount Paid</th>
+                    <th style="padding: 6px 8px">Vendor Tier</th>
+                    <th style="padding: 6px 8px">Commission Rate & Amount</th>
+                    <th style="padding: 6px 8px">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="procClientTransactionsTbody">
+                  <tr>
+                    <td colspan="6" class="empty-state">
+                      Loading transaction history...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SECTION 3: Admin Commission (%) & Settlement Calculation Box -->
+          <div
+            style="
+              background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+              border: 1.5px solid #a7f3d0;
+              border-radius: 10px;
+              padding: 18px;
+              margin-bottom: 16px;
+            "
+          >
+            <div
+              style="
+                font-weight: 800;
+                font-size: 0.95rem;
+                color: #065f46;
+                text-transform: uppercase;
+                margin-bottom: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 8px;
+              "
+            >
+              <span style="display: flex; align-items: center; gap: 8px">
+                ⚙️ Step 1: Admin Commission Fee & Settlement Calculation
+              </span>
+              <span
+                style="
+                  font-size: 0.75rem;
+                  background: #dcfce7;
+                  color: #15803d;
+                  padding: 3px 10px;
+                  border-radius: 9999px;
+                  border: 1px solid #86efac;
+                  font-weight: 700;
+                "
+              >
+                Formula: Net Payout = Requested - Vendor Comm - Admin Comm
+              </span>
+            </div>
+
+            <!-- Input Fields Row: Admin Commission % and Amount -->
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+                margin-bottom: 16px;
+              "
+            >
+              <!-- Admin Commission Percentage Input -->
+              <div class="form-group" style="margin-bottom: 0">
+                <label
+                  style="
+                    font-weight: 700;
+                    color: #1e293b;
+                    display: block;
+                    margin-bottom: 4px;
+                  "
+                >
+                  Admin Commission Percentage (%) *
+                </label>
+                <div style="position: relative">
+                  <input
+                    type="number"
+                    id="processAdminCommissionPercentInput"
+                    min="0"
+                    max="100"
+                    step="any"
+                    value="0"
+                    placeholder="e.g. 2.0"
+                    required
+                    style="
+                      padding-right: 32px;
+                      font-weight: 800;
+                      font-size: 1.15rem;
+                      color: #b91c1c;
+                      background: #ffffff;
+                    "
+                    oninput="handleAdminCommissionPercentChange()"
+                  />
+                  <span
+                    style="
+                      position: absolute;
+                      right: 12px;
+                      top: 50%;
+                      transform: translateY(-50%);
+                      font-weight: 800;
+                      color: #64748b;
+                      font-size: 1.1rem;
+                    "
+                    >%</span
+                  >
+                </div>
+                <small class="text-muted"
+                  >Enter admin fee percentage (e.g. 2% or 3.5%).</small
+                >
+              </div>
+
+              <!-- Admin Commission Amount (Auto-Calculated) -->
+              <div class="form-group" style="margin-bottom: 0">
+                <label
+                  style="
+                    font-weight: 700;
+                    color: #1e293b;
+                    display: block;
+                    margin-bottom: 4px;
+                  "
+                >
+                  Admin Commission Cut (INR ₹)
+                </label>
+                <div style="position: relative">
+                  <span
+                    style="
+                      position: absolute;
+                      left: 12px;
+                      top: 50%;
+                      transform: translateY(-50%);
+                      font-weight: 800;
+                      color: #64748b;
+                    "
+                    >₹</span
+                  >
+                  <input
+                    type="number"
+                    id="processAdminCommissionInput"
+                    min="0"
+                    step="any"
+                    value="0"
+                    required
+                    style="
+                      padding-left: 28px;
+                      font-weight: 800;
+                      font-size: 1.15rem;
+                      color: #b91c1c;
+                      background: #ffffff;
+                    "
+                    oninput="handleAdminCommissionAmountChange()"
+                  />
+                </div>
+                <small class="text-muted"
+                  >Auto-computed: (Gross Amount × Admin %)</small
+                >
+              </div>
+            </div>
+
+            <!-- Complete Settlement Calculation Breakdown Box -->
+            <div
+              style="
+                background: #ffffff;
+                border: 2px solid #059669;
+                border-radius: 8px;
+                padding: 14px;
+                box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);
+              "
+            >
+              <div
+                style="
+                  font-size: 0.8rem;
+                  font-weight: 700;
+                  color: #047857;
+                  text-transform: uppercase;
+                  margin-bottom: 10px;
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                "
+              >
+                <span>📊 Settlement Calculation Breakdown</span>
+                <span
+                  id="procCalculationStatusTag"
+                  style="
+                    font-size: 0.72rem;
+                    color: #059669;
+                    font-weight: 700;
+                    background: #ecfdf5;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    border: 1px solid #a7f3d0;
+                  "
+                  >Status: Ready</span
+                >
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  flex-direction: column;
+                  gap: 8px;
+                  font-size: 0.92rem;
+                  border-bottom: 1.5px dashed #cbd5e1;
+                  padding-bottom: 10px;
+                "
+              >
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                  "
+                >
+                  <span style="color: #334155; font-weight: 600"
+                    >1. Gross Requested Withdrawal Amount:</span
+                  >
+                  <span
+                    style="font-weight: 800; color: #0f172a; font-size: 1.05rem"
+                    id="procCalcGrossAmt"
+                    >₹0.00</span
+                  >
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                  "
+                >
+                  <span style="color: #7e22ce; font-weight: 600"
+                    >2. Less: Total Vendor Commission Deducted:</span
+                  >
+                  <span
+                    style="font-weight: 800; color: #7e22ce; font-size: 1.05rem"
+                    id="procCalcVendorComm"
+                    >- ₹0.00</span
+                  >
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                  "
+                >
+                  <span style="color: #dc2626; font-weight: 600"
+                    >3. Less: Admin Commission Cut (<span
+                      id="procCalcAdminPercentTag"
+                      >0%</span
+                    >):</span
+                  >
+                  <span
+                    style="font-weight: 800; color: #dc2626; font-size: 1.05rem"
+                    id="procCalcAdminComm"
+                    >- ₹0.00</span
+                  >
+                </div>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-top: 12px;
+                  flex-wrap: wrap;
+                  gap: 12px;
+                "
+              >
+                <div>
+                  <div
+                    style="
+                      font-size: 0.8rem;
+                      font-weight: 800;
+                      color: #065f46;
+                      text-transform: uppercase;
+                      letter-spacing: 0.5px;
+                    "
+                  >
+                    Net Amount Transferred to Client (Payable)
+                  </div>
+                  <div
+                    style="font-size: 0.78rem; color: #64748b; margin-top: 2px"
+                    id="procClientCalculationFormula"
+                  >
+                    (Gross ₹0 - Vendor Comm ₹0 - Admin Cut ₹0)
+                  </div>
+                </div>
+                <div style="text-align: right">
+                  <div
+                    style="font-size: 1.9rem; font-weight: 900; color: #059669"
+                    id="procClientNetPayoutHighlight"
+                  >
+                    ₹0.00
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 4: Payment Proof & Bank Reference (UTR) -->
+          <div
+            style="
+              background: #f8fafc;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 16px;
+              margin-bottom: 16px;
+            "
+          >
+            <div
+              style="
+                font-weight: 800;
+                font-size: 0.9rem;
+                color: #1e293b;
+                text-transform: uppercase;
+                margin-bottom: 12px;
+              "
+            >
+              📸 Step 2: Payment Proof & Bank Reference (UTR)
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Bank Reference / UTR Transaction ID *</label>
+                <input
+                  type="text"
+                  id="adminClientPayoutUtr"
+                  required
+                  placeholder="e.g. UTR9876543210 / IMPS Reference"
+                  style="
+                    font-family: monospace;
+                    font-weight: 700;
+                    font-size: 1rem;
+                  "
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Payment Screenshot Proof * (File Upload)</label>
+                <input
+                  type="file"
+                  id="adminClientPayoutProofFile"
+                  accept="image/*"
+                />
+                <div
+                  id="procClientExistingProofPreview"
+                  class="hidden"
+                  style="margin-top: 8px"
+                >
+                  <span
+                    style="
+                      font-size: 0.78rem;
+                      font-weight: 700;
+                      color: #059669;
+                      display: block;
+                      margin-bottom: 4px;
+                    "
+                    >Uploaded Payment Proof:</span
+                  >
+                  <a
+                    id="procClientExistingProofLink"
+                    href="#"
+                    target="_blank"
+                    style="display: inline-block"
+                  >
+                    <img
+                      id="procClientExistingProofImg"
+                      src=""
+                      alt="Payment Proof"
+                      style="
+                        max-height: 140px;
+                        border-radius: 6px;
+                        border: 1px solid #cbd5e1;
+                        padding: 2px;
+                        background: #fff;
+                      "
+                    />
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0">
+              <label>Admin Remarks / Transfer Notes (Optional)</label>
+              <input
+                type="text"
+                id="adminClientPayoutNotes"
+                placeholder="e.g. Paid via HDFC Corporate NetBanking"
+              />
+            </div>
+          </div>
+
+          <div
+            class="modal-actions"
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeAdminProcessClientWithdrawalModal()"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="btn btn-success"
+              id="btnAdminSubmitClientWithdrawalPay"
+              style="font-weight: 800; font-size: 1rem; padding: 10px 20px"
+            >
+              🚀 Submit Payout Proof & Send to Client
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 

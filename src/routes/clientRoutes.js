@@ -98,8 +98,25 @@ router.get('/payment-requests', authMiddleware, clientRoleAuth, clientAuth, getC
 router.post('/payment/submit', authMiddleware, clientRoleAuth, clientAuth, submitPayment);
 router.post('/payment-submit', authMiddleware, clientRoleAuth, clientAuth, submitPayment);
 
+const {
+  clientCreateWithdrawal,
+  clientGetWithdrawals,
+  clientGetWithdrawalById,
+  clientApproveWithdrawal,
+  clientRejectWithdrawal
+} = require('../controllers/clientWithdrawalController');
+
 // =============================================================================
-// 6. LEGACY / SYSTEM FCFS ALLOCATION
+// 6. CLIENT WITHDRAWALS MANAGEMENT & RECEIPTS
+// =============================================================================
+router.post('/withdrawals', authMiddleware, clientRoleAuth, clientAuth, clientCreateWithdrawal);
+router.get('/withdrawals', authMiddleware, clientRoleAuth, clientAuth, clientGetWithdrawals);
+router.get('/withdrawals/:id', authMiddleware, clientRoleAuth, clientAuth, clientGetWithdrawalById);
+router.post('/withdrawals/:id/approve', authMiddleware, clientRoleAuth, clientAuth, clientApproveWithdrawal);
+router.post('/withdrawals/:id/reject', authMiddleware, clientRoleAuth, clientAuth, clientRejectWithdrawal);
+
+// =============================================================================
+// 7. LEGACY / SYSTEM FCFS ALLOCATION
 // =============================================================================
 router.post('/transactions/allocate', allocateTransaction);
 

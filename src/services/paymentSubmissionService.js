@@ -4,6 +4,7 @@ const Vendor = require('../models/vendorModel');
 const VendorWallet = require('../models/vendorWalletModel');
 const ClientTransaction = require('../models/clientTransactionModel');
 const ClientWalletTransaction = require('../models/clientWalletTransactionModel');
+const ClientWithdrawal = require('../models/clientWithdrawalModel');
 const WalletTransaction = require('../models/walletTransactionModel');
 const { getVendorEffectiveCommission } = require('./tierCalculationService');
 const { generateTransactionNumber } = require('./walletService');
@@ -519,17 +520,55 @@ const getClientBalanceAndHistory = async (clientId, { page = 1, limit = 20 } = {
   const numPage = Math.max(1, parseInt(page, 10) || 1);
   const numLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
   const skip = (numPage - 1) * numLimit;
+  const clientObjId = new mongoose.Types.ObjectId(clientId);
 
-  const [ledgerTransactions, totalLedger] = await Promise.all([
-    ClientWalletTransaction.find({ clientId })
+  const [ledgerTransactions, totalLedger, earningsAgg, withdrawalsAgg] = await Promise.all([
+    ClientWalletTransaction.find({ clientId: clientObjId })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(numLimit),
-    ClientWalletTransaction.countDocuments({ clientId })
+    ClientWalletTransaction.countDocuments({ clientId: clientObjId }),
+    ClientTransaction.aggregate([
+      {
+        $match: {
+          clientId: clientObjId,
+          status: { $in: ['APPROVED', 'COMPLETED'] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: {
+            $sum: {
+              $ifNull: ['$approvedAmount', { $ifNull: ['$submittedAmount', '$requestedAmount'] }]
+            }
+          }
+        }
+      }
+    ]),
+    ClientWithdrawal.aggregate([
+      {
+        $match: {
+          clientId: clientObjId,
+          status: 'APPROVED'
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalWithdrawn: { $sum: '$amount' }
+        }
+      }
+    ])
   ]);
+
+  const totalEarnings = earningsAgg[0]?.totalEarnings || 0;
+  const totalWithdrawn = withdrawalsAgg[0]?.totalWithdrawn || 0;
 
   return {
     balance: Number(client.balance) || 0,
+    totalEarnings,
+    totalWithdrawn,
     currency: 'INR',
     client: {
       id: client._id,

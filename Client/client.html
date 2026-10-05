@@ -314,37 +314,65 @@
         </div>
       <!-- Client Balance & Financial Summary -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
-        <div class="card" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 20px;">
+        <!-- Total Earning Card -->
+        <div class="card" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white; border: none; padding: 20px; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.2); border-radius: 12px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
-              <div style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9;">Platform Balance</div>
-              <div style="font-size: 2rem; font-weight: 800; margin: 6px 0;" id="clientPlatformBalance">₹0</div>
-              <div style="font-size: 0.8rem; opacity: 0.85;">Credited immediately upon vendor approval</div>
+              <div style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95; font-weight: 700;">💰 Total Earning</div>
+              <div style="font-size: 1.9rem; font-weight: 800; margin: 6px 0;" id="clientTotalEarnings">₹0.00</div>
+              <div style="font-size: 0.8rem; opacity: 0.85;">Total gross approved & credited funds</div>
             </div>
-            <button class="btn btn-sm btn-secondary" style="background: rgba(255,255,255,0.2); border: none; color: white;" onclick="fetchClientBalance()">🔄</button>
           </div>
         </div>
 
-        <div class="card" style="padding: 20px;">
-          <div style="font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Total Transactions</div>
-          <div style="font-size: 1.8rem; font-weight: 800; color: #1e293b; margin: 6px 0;" id="clientTotalTxCount">0</div>
-          <div style="font-size: 0.8rem; color: #64748b;">All completed & pending payments</div>
+        <!-- Total Withdrawal Card -->
+        <div class="card" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: white; border: none; padding: 20px; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.2); border-radius: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95; font-weight: 700;">💸 Total Withdrawal</div>
+              <div style="font-size: 1.9rem; font-weight: 800; margin: 6px 0;" id="clientTotalWithdrawn">₹0.00</div>
+              <div style="font-size: 0.8rem; opacity: 0.85;">Total settled client payouts</div>
+            </div>
+          </div>
         </div>
 
-        <div class="card" style="padding: 20px;">
-          <div style="font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Linked Payment Accounts</div>
+        <!-- Platform Balance Card -->
+        <div class="card" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 20px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2); border-radius: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95; font-weight: 700;">💳 Platform Balance</div>
+              <div style="font-size: 1.9rem; font-weight: 800; margin: 6px 0;" id="clientPlatformBalance">₹0.00</div>
+              <div style="font-size: 0.8rem; opacity: 0.85;">Available for instant withdrawal</div>
+            </div>
+            <button class="btn btn-sm btn-secondary" style="background: rgba(255,255,255,0.25); border: none; color: white; cursor: pointer; padding: 6px 10px; border-radius: 6px;" onclick="fetchClientBalance()" title="Refresh Balance">🔄</button>
+          </div>
+        </div>
+
+        <!-- Total Transactions -->
+        <div class="card" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: #ffffff;">
+          <div style="font-size: 0.85rem; color: #64748b; font-weight: 700; text-transform: uppercase;">📊 Total Transactions</div>
+          <div style="font-size: 1.8rem; font-weight: 800; color: #1e293b; margin: 6px 0;" id="clientTotalTxCount">0</div>
+          <div style="font-size: 0.8rem; color: #64748b;">All payment requests & ledger records</div>
+        </div>
+
+        <!-- Linked Payment Accounts -->
+        <div class="card" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: #ffffff;">
+          <div style="font-size: 0.85rem; color: #64748b; font-weight: 700; text-transform: uppercase;">🏦 Linked Accounts</div>
           <div style="font-size: 1.8rem; font-weight: 800; color: #4338ca; margin: 6px 0;" id="clientTotalAccountsCount">0 Banks / 0 Wallets</div>
           <div style="font-size: 0.8rem; color: #64748b;">Saved bank accounts and UPI / QR wallets</div>
         </div>
       </div>
 
       <!-- CLIENT TABS NAVIGATION -->
-      <div class="tabs mb-3" style="display: flex; gap: 8px; border-bottom: 2px solid var(--border); padding-bottom: 8px;">
+      <div class="tabs mb-3" style="display: flex; gap: 8px; border-bottom: 2px solid var(--border); padding-bottom: 8px; flex-wrap: wrap;">
         <button class="tab-btn active" id="tabBtnPayment" onclick="switchClientTab('paymentTab', event)" style="font-weight: 700;">
           💳 Make Payment Request (FCFS)
         </button>
         <button class="tab-btn" id="tabBtnAccounts" onclick="switchClientTab('accountsTab', event)" style="font-weight: 700;">
           🏦 My Bank Accounts & Wallets with QR
+        </button>
+        <button class="tab-btn" id="tabBtnWithdrawals" onclick="switchClientTab('withdrawalsTab', event)" style="font-weight: 700;">
+          💸 Withdraw Funds & Payouts
         </button>
         <button class="tab-btn" id="tabBtnHistory" onclick="switchClientTab('historyTab', event)" style="font-weight: 700;">
           📋 Payment Requests History
@@ -549,6 +577,182 @@
         </div>
       </div>
 
+      <!-- TAB: CLIENT WITHDRAWALS & PAYOUT RECEIPTS -->
+      <div id="withdrawalsTab" class="client-tab-content hidden">
+        
+        <!-- Create Withdrawal Form Card -->
+        <div class="card mb-3">
+          <div class="card-header flex-between">
+            <div>
+              <h2>💸 Request Fund Withdrawal</h2>
+              <p class="subtitle">Submit a withdrawal request to transfer your available platform balance to your Bank or Wallet</p>
+            </div>
+            <div style="text-align: right;">
+              <span style="font-size: 0.8rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Available for Withdrawal</span>
+              <div style="font-size: 1.6rem; font-weight: 800; color: #059669;" id="clientWithdrawAvailableBalance">₹0</div>
+            </div>
+          </div>
+
+          <form id="clientWithdrawalForm" onsubmit="handleCreateClientWithdrawal(event)">
+            
+            <!-- 1. Amount Input (Auto-filled full balance & non-changeable) -->
+            <div class="form-group mb-3">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-weight: 700; margin: 0; display: block;">1. Withdrawal Amount (INR ₹) *</label>
+                <span style="font-size: 0.78rem; background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 9999px; font-weight: 600;">🔒 Auto Full Balance | Min ₹25,000</span>
+              </div>
+              <div style="position: relative;">
+                <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 1.1rem; font-weight: 700; color: #64748b;">₹</span>
+                <input
+                  type="number"
+                  id="clientWithdrawAmount"
+                  required
+                  readonly
+                  min="25000"
+                  step="any"
+                  placeholder="0.00"
+                  style="padding-left: 32px; font-size: 1.15rem; font-weight: 800; background: #f8fafc; color: #0f172a; cursor: not-allowed; border: 1.5px solid #cbd5e1;"
+                />
+              </div>
+              <div id="withdrawAmountHint" style="font-size: 0.82rem; color: #64748b; margin-top: 6px; display: flex; align-items: center; gap: 6px;">
+                <span>🔒 Entire available platform balance is automatically populated and non-changeable. Minimum withdrawal limit is ₹25,000.</span>
+              </div>
+            </div>
+
+            <!-- 2. Destination Type (Bank or Wallet) -->
+            <div class="form-group mb-3">
+              <label style="font-weight: 700; margin-bottom: 6px; display: block;">2. Select Destination Type *</label>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 2px solid var(--border); border-radius: 10px; cursor: pointer;" id="withdrawTypeBankLabel">
+                  <input type="radio" name="withdrawDestinationType" value="bank" checked onchange="updateWithdrawDestinationUI()" style="accent-color: #4f46e5; width: 18px; height: 18px;" />
+                  <div>
+                    <div style="font-weight: 700; color: #1e293b;">🏦 Bank Account</div>
+                    <div style="font-size: 0.8rem; color: #64748b;">Direct NEFT / IMPS / RTGS transfer</div>
+                  </div>
+                </label>
+
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 2px solid var(--border); border-radius: 10px; cursor: pointer;" id="withdrawTypeWalletLabel">
+                  <input type="radio" name="withdrawDestinationType" value="wallet" onchange="updateWithdrawDestinationUI()" style="accent-color: #4f46e5; width: 18px; height: 18px;" />
+                  <div>
+                    <div style="font-weight: 700; color: #1e293b;">👛 Wallet / UPI ID</div>
+                    <div style="font-size: 0.8rem; color: #64748b;">Instant transfer via UPI / VPA</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- 3. Selection Mode: Saved Account vs Manual Entry -->
+            <div class="form-group mb-3">
+              <label style="font-weight: 700; margin-bottom: 6px; display: block;">3. Destination Details *</label>
+              <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600;">
+                  <input type="radio" name="withdrawMode" value="saved" checked onchange="updateWithdrawModeUI()" style="accent-color: #4f46e5;" />
+                  Select from Saved Accounts
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600;">
+                  <input type="radio" name="withdrawMode" value="manual" onchange="updateWithdrawModeUI()" style="accent-color: #4f46e5;" />
+                  Enter New Details Manually
+                </label>
+              </div>
+
+              <!-- Saved Account Dropdown Container -->
+              <div id="withdrawSavedAccountBox">
+                <select id="withdrawSavedAccountSelect" style="width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; font-family: inherit;">
+                  <option value="">-- Select Saved Destination --</option>
+                </select>
+                <small class="text-muted" style="display: block; margin-top: 4px;">
+                  Don't see your account? Switch to manual entry or add it in the "My Bank Accounts & Wallets" tab.
+                </small>
+              </div>
+
+              <!-- Manual Bank Details Box -->
+              <div id="withdrawManualBankBox" class="hidden" style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 14px;">
+                <div class="form-group mb-2">
+                  <label>Bank Name *</label>
+                  <input type="text" id="manualBankName" placeholder="e.g. HDFC Bank, ICICI Bank" />
+                </div>
+                <div class="form-row mb-2">
+                  <div class="form-group">
+                    <label>Account Number *</label>
+                    <input type="text" id="manualAccountNumber" placeholder="e.g. 50100234567890" />
+                  </div>
+                  <div class="form-group">
+                    <label>IFSC Code *</label>
+                    <input type="text" id="manualIfscCode" placeholder="e.g. HDFC0001234" style="text-transform: uppercase;" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Account Holder Name *</label>
+                    <input type="text" id="manualHolderName" placeholder="e.g. John Doe / Business" />
+                  </div>
+                  <div class="form-group">
+                    <label>Branch (Optional)</label>
+                    <input type="text" id="manualBranchName" placeholder="e.g. Mumbai Main Branch" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Manual Wallet Details Box -->
+              <div id="withdrawManualWalletBox" class="hidden" style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 14px;">
+                <div class="form-group mb-2">
+                  <label>Wallet / Provider Name *</label>
+                  <input type="text" id="manualWalletName" placeholder="e.g. PhonePe, Google Pay, Paytm" />
+                </div>
+                <div class="form-group">
+                  <label>UPI ID / VPA / Number *</label>
+                  <input type="text" id="manualWalletId" placeholder="e.g. business@okaxis or 9876543210@paytm" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes (Optional) -->
+            <div class="form-group mb-3">
+              <label>Remarks / Notes (Optional)</label>
+              <input type="text" id="clientWithdrawNotes" placeholder="e.g. Urgent payout request" />
+            </div>
+
+            <button type="submit" id="btnSubmitWithdrawal" class="btn btn-primary w-full py-3" style="font-size: 1.05rem; font-weight: 700;">
+              🚀 Submit Withdrawal Request to Admin
+            </button>
+          </form>
+        </div>
+
+        <!-- Withdrawal Requests History Card -->
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <h3>📋 My Withdrawal Requests & Receipts</h3>
+              <p class="subtitle">Track admin payment verification, view receipts, and confirm received payouts</p>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="fetchClientWithdrawals()">🔄 Refresh</button>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Withdrawal ID & Date</th>
+                  <th>Requested Amount</th>
+                  <th>Admin Commission</th>
+                  <th>Net Payout</th>
+                  <th>Destination</th>
+                  <th>Status</th>
+                  <th>UTR / Reference</th>
+                  <th>Actions & Receipt</th>
+                </tr>
+              </thead>
+              <tbody id="clientWithdrawalsTbody">
+                <tr>
+                  <td colspan="8" class="empty-state">Loading withdrawal requests...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
       <!-- TAB 3: PAYMENT REQUESTS HISTORY -->
       <div id="historyTab" class="client-tab-content hidden">
         <div class="card mb-3">
@@ -751,6 +955,184 @@
           <button type="submit" id="btnSaveClientWallet" class="btn btn-primary">💾 Save Wallet & QR</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- CONFIRM CLIENT WITHDRAWAL RECEIVED MODAL (Han Paisa Aa Gaya Hai) -->
+  <div id="clientConfirmWithdrawalModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 550px;">
+      <div class="card-header flex-between">
+        <h3 style="color: #047857; display: flex; align-items: center; gap: 8px;">
+          💳 Verify & Confirm Payout Receipt
+        </h3>
+        <button type="button" class="btn-close" onclick="closeClientConfirmModal()">✕</button>
+      </div>
+
+      <div style="padding: 10px 0;">
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+          <div style="font-size: 0.85rem; color: #166534; font-weight: 700; margin-bottom: 4px;">ADMIN HAS TRANSFERRED FUNDS</div>
+          <div style="font-size: 0.85rem; color: #15803d;">
+            Please check your bank account or wallet statement to confirm that the net amount has been credited.
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+          <div class="info-card">
+            <span class="label">Requested Amount</span>
+            <span class="value" id="confirmModalRequestedAmt" style="color: #475569; font-weight: 700;">₹--</span>
+          </div>
+          <div class="info-card">
+            <span class="label">Admin Commission</span>
+            <span class="value" id="confirmModalAdminComm" style="color: #dc2626; font-weight: 800;">- ₹--</span>
+          </div>
+          <div class="info-card" style="grid-column: span 2; background: #f0fdf4; border-color: #86efac;">
+            <span class="label" style="color: #166534;">Net Amount Transferred</span>
+            <span class="value" id="confirmModalNetPaidAmt" style="font-size: 1.4rem; color: #15803d; font-weight: 800;">₹--</span>
+          </div>
+        </div>
+
+        <div class="info-card mb-3">
+          <span class="label">Bank UTR / Transaction Reference ID</span>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <span class="value" id="confirmModalUtr" style="font-family: monospace; font-size: 1.1rem; color: #1e293b;">--</span>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="copyToClipboard(document.getElementById('confirmModalUtr').innerText)">📋 Copy</button>
+          </div>
+        </div>
+
+        <!-- Payment Proof Screenshot Box -->
+        <div id="confirmModalProofContainer" style="margin-bottom: 16px;">
+          <label style="font-weight: 700; font-size: 0.85rem; color: #475569; margin-bottom: 6px; display: block;">ADMIN PAYMENT PROOF SCREENSHOT</label>
+          <div style="text-align: center; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px;">
+            <img id="confirmModalProofImg" src="" alt="Payment Proof" style="max-height: 200px; max-width: 100%; object-fit: contain; border-radius: 6px; cursor: pointer;" onclick="openImageInNewTab(this.src)" />
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px;">Click image to enlarge</div>
+          </div>
+        </div>
+
+        <div id="confirmModalAdminNotesBox" class="info-card mb-3 hidden">
+          <span class="label">Admin Remarks</span>
+          <span class="value" id="confirmModalAdminNotes" style="font-size: 0.9rem; font-weight: normal; color: #334155;">--</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+          <button type="button" id="btnConfirmPaisaAaGaya" class="btn btn-success w-full py-3" style="font-size: 1.05rem; font-weight: 800;" onclick="executeClientApproveWithdrawal()">
+            ✅ Confirm Payment Received (हाँ, पैसा आ गया है)
+          </button>
+          <button type="button" class="btn btn-outline-danger w-full" style="border: 1px solid #ef4444; color: #dc2626; background: transparent; padding: 8px;" onclick="promptClientRejectWithdrawal()">
+            ❌ Not Received in Account (Reject)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLIENT WITHDRAWAL RECEIPT MODAL (Printable & Detailed Breakdown) -->
+  <div id="clientWithdrawalReceiptModal" class="modal-backdrop hidden">
+    <div class="modal-card card" style="max-width: 650px; background: #ffffff;">
+      
+      <!-- Printable Receipt Area -->
+      <div id="printableReceiptArea" style="padding: 10px;">
+        
+        <!-- Receipt Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 16px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 1.4rem;">🛡️</span>
+              <h2 style="margin: 0; font-size: 1.4rem; color: #0f172a;">Moffin Payment Settlement</h2>
+            </div>
+            <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: #64748b;">Official Client Withdrawal & Settlement Receipt</p>
+          </div>
+          <div style="text-align: right;">
+            <span class="badge" style="background: #10b981; color: #ffffff; font-weight: 800; font-size: 0.85rem; padding: 4px 10px;">PAID & SETTLED</span>
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;" id="receiptSettledDate">--</div>
+          </div>
+        </div>
+
+        <!-- Receipt Meta Info Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; font-size: 0.85rem;">
+          <div style="background: #f8fafc; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="color: #64748b; font-weight: 600; font-size: 0.75rem; text-transform: uppercase;">Receipt No.</div>
+            <div style="font-weight: 700; font-family: monospace; color: #0f172a; margin-top: 2px;" id="receiptNumber">REC-CWTH--</div>
+          </div>
+          <div style="background: #f8fafc; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="color: #64748b; font-weight: 600; font-size: 0.75rem; text-transform: uppercase;">UTR / Bank Ref ID</div>
+            <div style="font-weight: 700; font-family: monospace; color: #0f172a; margin-top: 2px;" id="receiptUtr">--</div>
+          </div>
+          <div style="background: #f8fafc; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="color: #64748b; font-weight: 600; font-size: 0.75rem; text-transform: uppercase;">Client Name & Email</div>
+            <div style="font-weight: 700; color: #0f172a; margin-top: 2px;" id="receiptClientInfo">--</div>
+          </div>
+          <div style="background: #f8fafc; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="color: #64748b; font-weight: 600; font-size: 0.75rem; text-transform: uppercase;">Payout Destination</div>
+            <div style="font-weight: 700; color: #0f172a; margin-top: 2px;" id="receiptDestination">--</div>
+          </div>
+        </div>
+
+        <!-- SPECIAL COMMISSIONS BREAKDOWN CARD -->
+        <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+          <div style="font-weight: 800; font-size: 0.85rem; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+            <span>📊 Commission Summary</span>
+            <span style="font-size: 0.75rem; background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 12px; font-weight: 700;">Admin Commission</span>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
+            <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">Admin Commission Rate</div>
+              <div style="font-size: 1.2rem; font-weight: 800; color: #4338ca; margin-top: 3px;" id="receiptAdminCommissionRate">0%</div>
+            </div>
+            <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">Admin Commission Cut</div>
+              <div style="font-size: 1.2rem; font-weight: 800; color: #dc2626; margin-top: 3px;" id="receiptAdminCommission">₹0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Financial Breakdown Table -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.9rem;">
+          <thead>
+            <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1; text-align: left;">
+              <th style="padding: 8px 10px; font-weight: 700; color: #334155;">Description</th>
+              <th style="padding: 8px 10px; font-weight: 700; color: #334155; text-align: right;">Amount (INR ₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 8px 10px; color: #334155;">Gross Withdrawal Amount Requested</td>
+              <td style="padding: 8px 10px; text-align: right; font-weight: 700; color: #0f172a;" id="receiptGrossAmount">₹0.00</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 8px 10px; color: #dc2626;">Less: Admin Commission Cut (<span id="receiptAdminCommissionRateTag">0%</span>)</td>
+              <td style="padding: 8px 10px; text-align: right; font-weight: 700; color: #dc2626;" id="receiptAdminDeductionAmount">- ₹0.00</td>
+            </tr>
+            <tr style="background: #f0fdf4; border-top: 2px solid #86efac; border-bottom: 2px solid #86efac;">
+              <td style="padding: 10px; font-weight: 800; font-size: 1.05rem; color: #166534;">Net Amount Paid to Client</td>
+              <td style="padding: 10px; text-align: right; font-weight: 800; font-size: 1.25rem; color: #15803d;" id="receiptNetAmount">₹0.00</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Payment Proof Viewer in Receipt -->
+        <div id="receiptProofContainer" style="margin-bottom: 12px; font-size: 0.85rem;" class="hidden">
+          <span style="font-weight: 700; color: #64748b; text-transform: uppercase; font-size: 0.75rem;">Verified Payment Screenshot:</span>
+          <div style="margin-top: 6px; text-align: center; background: #f8fafc; padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <img id="receiptProofImage" src="" alt="Payment Proof" style="max-height: 120px; object-fit: contain; border-radius: 4px; cursor: pointer;" onclick="openImageInNewTab(this.src)" />
+          </div>
+        </div>
+
+        <div style="font-size: 0.75rem; color: #94a3b8; text-align: center; margin-top: 10px; border-top: 1px dashed #e2e8f0; padding-top: 8px;">
+          This is a computer-generated receipt confirmed by client signature and blockchain/system audit ID.
+        </div>
+
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="modal-actions" style="border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between;">
+        <button type="button" class="btn btn-secondary" onclick="closeClientWithdrawalReceiptModal()">✕ Close</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-primary" onclick="printReceipt()">🖨️ Print Receipt</button>
+        </div>
+      </div>
+
     </div>
   </div>
 

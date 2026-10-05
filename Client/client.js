@@ -173,6 +173,16 @@ function showDashboardSection(client) {
     lastLoginElem.textContent = 'First session';
   }
 
+  // Earnings & Withdrawals top cards
+  const earningsElem = document.getElementById('clientTotalEarnings');
+  const withdrawnElem = document.getElementById('clientTotalWithdrawn');
+  if (earningsElem && client.totalEarnings !== undefined) {
+    earningsElem.textContent = `₹ ${Number(client.totalEarnings || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  }
+  if (withdrawnElem && client.totalWithdrawn !== undefined) {
+    withdrawnElem.textContent = `₹ ${Number(client.totalWithdrawn || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  }
+
   // Load payment requests, accounts & initialize UI
   updateMethodUI();
   fetchClientBalance();
@@ -197,6 +207,11 @@ function switchClientTab(tabId, event) {
   } else if (tabId === 'accountsTab') {
     fetchClientBankAccounts();
     fetchClientWallets();
+  } else if (tabId === 'withdrawalsTab') {
+    fetchClientBalance();
+    fetchClientWithdrawals();
+    populateWithdrawSavedAccounts();
+    updateWithdrawDestinationUI();
   } else if (tabId === 'historyTab') {
     fetchClientPaymentRequests();
   }
@@ -516,9 +531,9 @@ function renderAssignedDestination(data) {
       <div style="display: flex; align-items: center; gap: 10px;">
         <span style="font-size: 1.5rem;">🏷️</span>
         <div>
-          <div style="font-size: 0.75rem; font-weight: 700; color: #7e22ce; text-transform: uppercase; letter-spacing: 0.05em;">Vendor Commission Rate</div>
+          <div style="font-size: 0.75rem; font-weight: 700; color: #7e22ce; text-transform: uppercase; letter-spacing: 0.05em;">Commission Rate</div>
           <div style="font-size: 1.15rem; font-weight: 800; color: #6b21a8;">
-            ${commRate}% <span class="badge" style="font-size: 0.75rem; margin-left: 4px; background: #9333ea; color: #fff;">${tierName || 'Standard Tier'}</span>
+            ${commRate}%
           </div>
         </div>
       </div>
@@ -676,6 +691,8 @@ async function handleClientPaymentSubmission(e) {
 // =============================================================================
 // CLIENT BALANCE & TRANSACTIONS
 // =============================================================================
+let cachedClientBalance = 0;
+
 async function fetchClientBalance() {
   try {
     const res = await fetch(`${API_BASE}/client/balance`, {
@@ -685,11 +702,57 @@ async function fetchClientBalance() {
     const data = await res.json();
 
     if (data.success && data.data) {
+      cachedClientBalance = Number(data.data.balance) || 0;
       const balanceElem = document.getElementById('clientPlatformBalance');
+      const earningsElem = document.getElementById('clientTotalEarnings');
+      const withdrawnElem = document.getElementById('clientTotalWithdrawn');
       const countElem = document.getElementById('clientTotalTxCount');
+      const withdrawAvailElem = document.getElementById('clientWithdrawAvailableBalance');
 
       if (balanceElem) {
-        balanceElem.textContent = `₹ ${(data.data.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        balanceElem.textContent = `₹ ${cachedClientBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
+
+      if (earningsElem && data.data.totalEarnings !== undefined) {
+        earningsElem.textContent = `₹ ${Number(data.data.totalEarnings || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
+
+      if (withdrawnElem && data.data.totalWithdrawn !== undefined) {
+        withdrawnElem.textContent = `₹ ${Number(data.data.totalWithdrawn || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
+
+      if (withdrawAvailElem) {
+        withdrawAvailElem.textContent = `₹ ${cachedClientBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
+
+      const withdrawInput = document.getElementById('clientWithdrawAmount');
+      if (withdrawInput) {
+        withdrawInput.value = cachedClientBalance > 0 ? cachedClientBalance : 0;
+      }
+
+      const withdrawHint = document.getElementById('withdrawAmountHint');
+      const submitWithdrawBtn = document.getElementById('btnSubmitWithdrawal');
+
+      if (cachedClientBalance < 25000) {
+        if (withdrawHint) {
+          withdrawHint.innerHTML = `<span style="color: #dc2626; font-weight: 600;">⚠️ Available balance (₹${cachedClientBalance.toLocaleString('en-IN')}) is below the minimum withdrawal limit of ₹25,000.</span>`;
+        }
+        if (submitWithdrawBtn) {
+          submitWithdrawBtn.disabled = true;
+          submitWithdrawBtn.style.opacity = '0.6';
+          submitWithdrawBtn.style.cursor = 'not-allowed';
+          submitWithdrawBtn.title = 'Minimum ₹25,000 required to request withdrawal';
+        }
+      } else {
+        if (withdrawHint) {
+          withdrawHint.innerHTML = `<span style="color: #059669; font-weight: 600;">✅ Full available balance (₹${cachedClientBalance.toLocaleString('en-IN')}) is auto-filled for 100% withdrawal.</span>`;
+        }
+        if (submitWithdrawBtn) {
+          submitWithdrawBtn.disabled = false;
+          submitWithdrawBtn.style.opacity = '1';
+          submitWithdrawBtn.style.cursor = 'pointer';
+          submitWithdrawBtn.title = '';
+        }
       }
 
       if (countElem && data.data.ledger?.pagination) {
@@ -1241,6 +1304,551 @@ function openClientQrViewerModal(qrUrl, walletName, walletId) {
 
 function closeClientQrViewerModal() {
   document.getElementById('clientQrViewerModal').classList.add('hidden');
+}
+
+// =============================================================================
+// 9. CLIENT WITHDRAWAL REQUESTS, CONFIRMATION & RECEIPTS
+// =============================================================================
+let cachedClientWithdrawals = [];
+let activeConfirmingWithdrawalId = null;
+
+function updateWithdrawDestinationUI() {
+  const destType = document.querySelector('input[name="withdrawDestinationType"]:checked')?.value || 'bank';
+  const bankLabel = document.getElementById('withdrawTypeBankLabel');
+  const walletLabel = document.getElementById('withdrawTypeWalletLabel');
+
+  if (bankLabel && walletLabel) {
+    if (destType === 'bank') {
+      bankLabel.style.borderColor = '#4f46e5';
+      bankLabel.style.backgroundColor = 'rgba(79, 70, 229, 0.05)';
+      walletLabel.style.borderColor = 'var(--border)';
+      walletLabel.style.backgroundColor = 'transparent';
+    } else {
+      walletLabel.style.borderColor = '#4f46e5';
+      walletLabel.style.backgroundColor = 'rgba(79, 70, 229, 0.05)';
+      bankLabel.style.borderColor = 'var(--border)';
+      bankLabel.style.backgroundColor = 'transparent';
+    }
+  }
+
+  populateWithdrawSavedAccounts();
+  updateWithdrawModeUI();
+}
+
+function updateWithdrawModeUI() {
+  const mode = document.querySelector('input[name="withdrawMode"]:checked')?.value || 'saved';
+  const destType = document.querySelector('input[name="withdrawDestinationType"]:checked')?.value || 'bank';
+
+  const savedBox = document.getElementById('withdrawSavedAccountBox');
+  const manualBankBox = document.getElementById('withdrawManualBankBox');
+  const manualWalletBox = document.getElementById('withdrawManualWalletBox');
+
+  if (mode === 'saved') {
+    if (savedBox) savedBox.classList.remove('hidden');
+    if (manualBankBox) manualBankBox.classList.add('hidden');
+    if (manualWalletBox) manualWalletBox.classList.add('hidden');
+  } else {
+    if (savedBox) savedBox.classList.add('hidden');
+    if (destType === 'bank') {
+      if (manualBankBox) manualBankBox.classList.remove('hidden');
+      if (manualWalletBox) manualWalletBox.classList.add('hidden');
+    } else {
+      if (manualBankBox) manualBankBox.classList.add('hidden');
+      if (manualWalletBox) manualWalletBox.classList.remove('hidden');
+    }
+  }
+}
+
+function populateWithdrawSavedAccounts() {
+  const select = document.getElementById('withdrawSavedAccountSelect');
+  if (!select) return;
+
+  const destType = document.querySelector('input[name="withdrawDestinationType"]:checked')?.value || 'bank';
+  select.innerHTML = '<option value="">-- Select Saved Destination --</option>';
+
+  if (destType === 'bank') {
+    if (cachedClientBankAccounts && cachedClientBankAccounts.length > 0) {
+      cachedClientBankAccounts.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b._id;
+        opt.textContent = `🏦 ${b.bankName} - A/C ${b.accountNumber} (${b.ifscCode})${b.isDefault ? ' [Primary ⭐]' : ''}`;
+        if (b.isDefault) opt.selected = true;
+        select.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No saved bank accounts found. Switch to manual entry.';
+      select.appendChild(opt);
+    }
+  } else if (destType === 'wallet') {
+    if (cachedClientWallets && cachedClientWallets.length > 0) {
+      cachedClientWallets.forEach(w => {
+        const opt = document.createElement('option');
+        opt.value = w._id;
+        opt.textContent = `💳 ${w.walletName} - ${w.walletId}${w.qrCode ? ' [QR Attached]' : ''}${w.isDefault ? ' [Primary ⭐]' : ''}`;
+        if (w.isDefault) opt.selected = true;
+        select.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No saved wallets found. Switch to manual entry.';
+      select.appendChild(opt);
+    }
+  }
+}
+
+function setWithdrawAmount(amt) {
+  const input = document.getElementById('clientWithdrawAmount');
+  if (input) {
+    input.value = amt;
+    input.focus();
+  }
+}
+
+function setWithdrawAllBalance() {
+  const input = document.getElementById('clientWithdrawAmount');
+  if (input) {
+    const fullBal = cachedClientBalance > 0 ? cachedClientBalance : 0;
+    input.value = fullBal;
+    input.focus();
+    if (fullBal < 25000) {
+      showToast(`Minimum withdrawal is ₹25,000. Available balance is ₹${fullBal.toLocaleString('en-IN')}`, 'info');
+    }
+  }
+}
+
+async function handleCreateClientWithdrawal(event) {
+  event.preventDefault();
+
+  const amount = Number(document.getElementById('clientWithdrawAmount')?.value);
+  const destType = document.querySelector('input[name="withdrawDestinationType"]:checked')?.value || 'bank';
+  const mode = document.querySelector('input[name="withdrawMode"]:checked')?.value || 'saved';
+  const notes = document.getElementById('clientWithdrawNotes')?.value.trim();
+  const submitBtn = document.getElementById('btnSubmitWithdrawal');
+
+  if (!amount || isNaN(amount) || amount < 25000) {
+    showToast('Minimum withdrawal amount is ₹25,000', 'error');
+    return;
+  }
+
+  if (amount > cachedClientBalance) {
+    showToast(`Withdrawal amount (₹${amount.toLocaleString('en-IN')}) cannot exceed available balance (₹${cachedClientBalance.toLocaleString('en-IN')})`, 'error');
+    return;
+  }
+
+  const payload = {
+    amount,
+    destinationType: destType,
+    isManualDestination: mode === 'manual',
+    notes
+  };
+
+  if (mode === 'saved') {
+    const selectedAccountId = document.getElementById('withdrawSavedAccountSelect')?.value;
+    if (!selectedAccountId) {
+      showToast('Please select a saved bank account / wallet, or enter details manually', 'error');
+      return;
+    }
+    payload.selectedAccountId = selectedAccountId;
+  } else {
+    if (destType === 'bank') {
+      const bankName = document.getElementById('manualBankName')?.value.trim();
+      const accountNumber = document.getElementById('manualAccountNumber')?.value.trim();
+      const ifscCode = document.getElementById('manualIfscCode')?.value.trim().toUpperCase();
+      const accountHolderName = document.getElementById('manualHolderName')?.value.trim();
+      const branchName = document.getElementById('manualBranchName')?.value.trim();
+
+      if (!bankName || !accountNumber || !ifscCode || !accountHolderName) {
+        showToast('Please fill all required manual bank details (Bank Name, A/C No, IFSC, Holder Name)', 'error');
+        return;
+      }
+      payload.destinationDetails = { bankName, accountNumber, ifscCode, accountHolderName, branchName };
+    } else {
+      const walletName = document.getElementById('manualWalletName')?.value.trim();
+      const walletId = document.getElementById('manualWalletId')?.value.trim();
+
+      if (!walletName || !walletId) {
+        showToast('Please fill wallet/provider name and UPI/Wallet ID', 'error');
+        return;
+      }
+      payload.destinationDetails = { walletName, walletId };
+    }
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '⏳ Submitting Withdrawal Request...';
+
+  try {
+    const res = await fetch(`${API_BASE}/client/withdrawals`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Withdrawal request submitted to Admin successfully!', 'success');
+      document.getElementById('clientWithdrawalForm').reset();
+      fetchClientWithdrawals();
+      fetchClientBalance();
+    } else {
+      showToast(data.message || 'Failed to submit withdrawal request', 'error');
+    }
+  } catch (err) {
+    console.error('handleCreateClientWithdrawal error:', err);
+    showToast('Network error submitting withdrawal request', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '🚀 Submit Withdrawal Request to Admin';
+  }
+}
+
+async function fetchClientWithdrawals() {
+  const tbody = document.getElementById('clientWithdrawalsTbody');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/client/withdrawals`, {
+      headers: getAuthHeaders()
+    });
+    const data = await res.json();
+
+    if (data.success && data.data) {
+      cachedClientWithdrawals = data.data.withdrawals || [];
+      renderClientWithdrawals(cachedClientWithdrawals);
+    } else {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">${data.message || 'No withdrawal requests found.'}</td></tr>`;
+    }
+  } catch (err) {
+    console.error('fetchClientWithdrawals error:', err);
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state" style="color: #dc2626;">Network error loading withdrawals</td></tr>';
+  }
+}
+
+function renderClientWithdrawals(withdrawals) {
+  const tbody = document.getElementById('clientWithdrawalsTbody');
+  if (!tbody) return;
+
+  if (!withdrawals || withdrawals.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No withdrawal requests submitted yet.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = withdrawals.map(w => {
+    const dt = w.createdAt ? new Date(w.createdAt).toLocaleString('en-IN') : '--';
+    const reqAmount = (w.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const grossNum = Number(w.amount || 0);
+
+    const totalCombinedComm = (Number(w.adminPaymentDetails?.totalVendorCommissionDeducted) || 0) + (Number(w.adminPaymentDetails?.adminCommission) || 0);
+    const totalCombinedPct = grossNum > 0 ? ((totalCombinedComm / grossNum) * 100).toFixed(1) : 0;
+
+    const adminComm = totalCombinedComm > 0
+      ? `₹${totalCombinedComm.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (${totalCombinedPct}%)`
+      : (w.status === 'PENDING_ADMIN_PAYMENT' ? '<span class="text-muted">Calculated on Review</span>' : '₹0.00');
+    
+    const netPaid = w.adminPaymentDetails?.paidAmount !== undefined && w.adminPaymentDetails?.paidAmount !== null
+      ? `₹${Number(w.adminPaymentDetails.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : (grossNum > 0 && totalCombinedComm > 0 ? `₹${(grossNum - totalCombinedComm).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : `₹${reqAmount}`);
+
+    let destText = '--';
+    if (w.destinationType === 'bank') {
+      destText = `🏦 ${w.destinationDetails?.bankName || 'Bank'}<br><small style="color: #64748b;">A/C: ${w.destinationDetails?.accountNumber || '--'} (${w.destinationDetails?.ifscCode || '--'})</small>`;
+    } else if (w.destinationType === 'wallet') {
+      destText = `💳 ${w.destinationDetails?.walletName || 'UPI'}<br><small style="color: #64748b;">${w.destinationDetails?.walletId || '--'}</small>`;
+    }
+
+    let statusBadge = '<span class="badge badge-warning">PENDING ADMIN</span>';
+    let actionsHtml = '';
+
+    if (w.status === 'PENDING_ADMIN_PAYMENT') {
+      statusBadge = '<span class="badge" style="background: #f59e0b; color: #fff;">⏳ Awaiting Admin</span>';
+      actionsHtml = '<span class="text-muted" style="font-size: 0.8rem;">Processing</span>';
+    } else if (w.status === 'PAYMENT_SENT_BY_ADMIN') {
+      statusBadge = '<span class="badge" style="background: #0284c7; color: #fff; animation: pulse 2s infinite;">💳 Payment Sent (Action Required)</span>';
+      actionsHtml = `
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <button class="btn btn-sm btn-success" style="font-weight: 700; font-size: 0.8rem;" onclick="openClientConfirmModal('${w._id}')">
+            ✅ Confirm Received
+          </button>
+        </div>
+      `;
+    } else if (w.status === 'APPROVED') {
+      statusBadge = '<span class="badge badge-success">✅ Settled & Approved</span>';
+      actionsHtml = `
+        <button class="btn btn-sm btn-primary" style="font-weight: 700; font-size: 0.8rem;" onclick="openClientWithdrawalReceiptModal('${w._id}')">
+          🧾 View Receipt
+        </button>
+      `;
+    } else if (w.status === 'REJECTED') {
+      statusBadge = '<span class="badge badge-danger">❌ Rejected</span>';
+      actionsHtml = `<span class="text-muted" style="font-size: 0.75rem;" title="${w.clientConfirmation?.rejectionReason || ''}">Rejected</span>`;
+    }
+
+    const utrText = w.adminPaymentDetails?.transactionId
+      ? `<code style="font-size: 0.85rem; font-weight: 700; color: #4338ca;">${w.adminPaymentDetails.transactionId}</code>`
+      : '<span class="text-muted">--</span>';
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight: 800; font-family: monospace; color: #1e293b;">${w.withdrawalId}</div>
+          <div style="font-size: 0.75rem; color: #64748b;">${dt}</div>
+        </td>
+        <td style="font-weight: 800; color: #0f172a; font-size: 1rem;">₹${reqAmount}</td>
+        <td style="color: #dc2626; font-weight: 600;">${adminComm}</td>
+        <td style="color: #059669; font-weight: 800; font-size: 1.05rem;">${netPaid}</td>
+        <td style="font-size: 0.85rem;">${destText}</td>
+        <td>${statusBadge}</td>
+        <td>${utrText}</td>
+        <td>${actionsHtml}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openClientConfirmModal(withdrawalId) {
+  const w = cachedClientWithdrawals.find(x => x._id === withdrawalId || x.withdrawalId === withdrawalId);
+  if (!w) return;
+
+  activeConfirmingWithdrawalId = w._id;
+
+  const reqAmt = Number(w.amount || 0);
+  const vendorComm = Number(w.adminPaymentDetails?.totalVendorCommissionDeducted || 0);
+  const adminComm = Number(w.adminPaymentDetails?.adminCommission || 0);
+  const totalCombinedComm = Number((vendorComm + adminComm).toFixed(2));
+  const totalCombinedPct = reqAmt > 0 ? Number(((totalCombinedComm / reqAmt) * 100).toFixed(2)) : 0;
+  const netPaid = Number(w.adminPaymentDetails?.paidAmount || (reqAmt - totalCombinedComm));
+
+  document.getElementById('confirmModalRequestedAmt').textContent = `₹${reqAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  document.getElementById('confirmModalAdminComm').textContent = `- ₹${totalCombinedComm.toLocaleString('en-IN', { minimumFractionDigits: 2 })}${totalCombinedPct > 0 ? ` (${totalCombinedPct}%)` : ''}`;
+  document.getElementById('confirmModalNetPaidAmt').textContent = `₹${netPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  document.getElementById('confirmModalUtr').textContent = w.adminPaymentDetails?.transactionId || '--';
+
+  const proofImg = document.getElementById('confirmModalProofImg');
+  const proofContainer = document.getElementById('confirmModalProofContainer');
+
+  if (w.adminPaymentDetails?.paymentProof) {
+    proofImg.src = w.adminPaymentDetails.paymentProof;
+    proofContainer.classList.remove('hidden');
+  } else {
+    proofContainer.classList.add('hidden');
+  }
+
+  const notesBox = document.getElementById('confirmModalAdminNotesBox');
+  const notesText = document.getElementById('confirmModalAdminNotes');
+  if (w.adminPaymentDetails?.adminNotes) {
+    notesText.textContent = w.adminPaymentDetails.adminNotes;
+    notesBox.classList.remove('hidden');
+  } else {
+    notesBox.classList.add('hidden');
+  }
+
+  document.getElementById('clientConfirmWithdrawalModal').classList.remove('hidden');
+}
+
+function closeClientConfirmModal() {
+  document.getElementById('clientConfirmWithdrawalModal').classList.add('hidden');
+  activeConfirmingWithdrawalId = null;
+}
+
+async function executeClientApproveWithdrawal() {
+  if (!activeConfirmingWithdrawalId) return;
+
+  const confirmBtn = document.getElementById('btnConfirmPaisaAaGaya');
+  confirmBtn.disabled = true;
+  confirmBtn.innerHTML = '⏳ Confirming Payment & Generating Receipt...';
+
+  try {
+    const res = await fetch(`${API_BASE}/client/withdrawals/${activeConfirmingWithdrawalId}/approve`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Payment confirmed! Platform balance updated and receipt generated.', 'success');
+      closeClientConfirmModal();
+      fetchClientWithdrawals();
+      fetchClientBalance();
+
+      // Automatically open the detailed receipt modal
+      if (data.data?.receipt) {
+        renderReceiptModalFromData(data.data.receipt);
+      }
+    } else {
+      showToast(data.message || 'Failed to approve withdrawal', 'error');
+    }
+  } catch (err) {
+    console.error('executeClientApproveWithdrawal error:', err);
+    showToast('Network error approving withdrawal', 'error');
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = '✅ Confirm Payment Received (हाँ, पैसा आ गया है)';
+  }
+}
+
+async function promptClientRejectWithdrawal() {
+  if (!activeConfirmingWithdrawalId) return;
+
+  const reason = prompt('Please enter the reason why payment was not received (e.g. Account balance not credited, invalid UTR):');
+  if (reason === null) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/client/withdrawals/${activeConfirmingWithdrawalId}/reject`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ rejectionReason: reason })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Withdrawal marked as rejected.', 'info');
+      closeClientConfirmModal();
+      fetchClientWithdrawals();
+    } else {
+      showToast(data.message || 'Failed to reject withdrawal', 'error');
+    }
+  } catch (err) {
+    console.error('promptClientRejectWithdrawal error:', err);
+    showToast('Network error rejecting withdrawal', 'error');
+  }
+}
+
+async function openClientWithdrawalReceiptModal(withdrawalId) {
+  try {
+    const res = await fetch(`${API_BASE}/client/withdrawals/${withdrawalId}`, {
+      headers: getAuthHeaders()
+    });
+    const data = await res.json();
+
+    if (data.success && data.data && data.data.withdrawal) {
+      const w = data.data.withdrawal;
+      const receiptData = {
+        receiptNumber: `REC-${w.withdrawalId}`,
+        withdrawalId: w.withdrawalId,
+        clientName: `${w.clientId?.firstName || ''} ${w.clientId?.lastName || ''}`.trim() || 'Client',
+        clientEmail: w.clientId?.email || '--',
+        requestedAmount: w.amount,
+        adminCommissionPercentage: w.financialSettlement?.adminCommissionPercentage || w.adminPaymentDetails?.adminCommissionPercentage || 0,
+        adminCommissionDeducted: w.financialSettlement?.adminCommissionDeducted || w.adminPaymentDetails?.adminCommission || 0,
+        totalVendorCommission: w.financialSettlement?.totalVendorCommissionAtTime || w.adminPaymentDetails?.totalVendorCommissionDeducted || 0,
+        totalCombinedCommission: w.financialSettlement?.totalCombinedCommission || ((w.financialSettlement?.totalVendorCommissionAtTime || w.adminPaymentDetails?.totalVendorCommissionDeducted || 0) + (w.financialSettlement?.adminCommissionDeducted || w.adminPaymentDetails?.adminCommission || 0)),
+        netAmountReceived: w.financialSettlement?.netAmountReceived || w.adminPaymentDetails?.paidAmount || (w.amount - (w.adminPaymentDetails?.adminCommission || 0)),
+        destinationType: w.destinationType,
+        destinationDetails: w.destinationDetails,
+        transactionId: w.adminPaymentDetails?.transactionId || '--',
+        paymentProof: w.adminPaymentDetails?.paymentProof || null,
+        settledAt: w.financialSettlement?.settledAt || w.updatedAt
+      };
+      renderReceiptModalFromData(receiptData);
+    } else {
+      showToast('Failed to load receipt details', 'error');
+    }
+  } catch (err) {
+    console.error('openClientWithdrawalReceiptModal error:', err);
+    showToast('Network error loading receipt', 'error');
+  }
+}
+
+function renderReceiptModalFromData(receipt) {
+  document.getElementById('receiptNumber').textContent = receipt.receiptNumber || 'REC-CWTH--';
+  document.getElementById('receiptUtr').textContent = receipt.transactionId || '--';
+  document.getElementById('receiptClientInfo').textContent = `${receipt.clientName || 'Client'} (${receipt.clientEmail || ''})`;
+  document.getElementById('receiptSettledDate').textContent = receipt.settledAt ? new Date(receipt.settledAt).toLocaleString('en-IN') : new Date().toLocaleString('en-IN');
+
+  let destText = '--';
+  if (receipt.destinationType === 'bank') {
+    destText = `🏦 ${receipt.destinationDetails?.bankName || 'Bank'} (A/C: ${receipt.destinationDetails?.accountNumber || '--'})`;
+  } else if (receipt.destinationType === 'wallet') {
+    destText = `💳 ${receipt.destinationDetails?.walletName || 'UPI'} (${receipt.destinationDetails?.walletId || '--'})`;
+  }
+  document.getElementById('receiptDestination').textContent = destText;
+
+  // Commissions breakdown - Unified Client View (Admin Commission only)
+  const vendorComm = Number(receipt.totalVendorCommission || 0);
+  const adminComm = Number(receipt.adminCommissionDeducted || 0);
+  const totalComm = Number(receipt.totalCombinedCommission || (vendorComm + adminComm));
+
+  const gross = Number(receipt.requestedAmount || 0);
+  const overallPct = gross > 0 ? Number(((totalComm / gross) * 100).toFixed(2)) : 0;
+  const net = Number(receipt.netAmountReceived !== undefined ? receipt.netAmountReceived : (gross - totalComm));
+
+  const rateElem = document.getElementById('receiptAdminCommissionRate');
+  if (rateElem) {
+    rateElem.textContent = `${overallPct}%`;
+  }
+
+  const commElem = document.getElementById('receiptAdminCommission');
+  if (commElem) {
+    commElem.textContent = `₹${totalComm.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  }
+
+  document.getElementById('receiptGrossAmount').textContent = `₹${gross.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  
+  const rateTag = document.getElementById('receiptAdminCommissionRateTag');
+  if (rateTag) {
+    rateTag.textContent = `${overallPct}%`;
+  }
+
+  const adminDeductElem = document.getElementById('receiptAdminDeductionAmount') || document.getElementById('receiptDeductionAmount');
+  if (adminDeductElem) {
+    adminDeductElem.textContent = `- ₹${totalComm.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  }
+
+  document.getElementById('receiptNetAmount').textContent = `₹${net.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+  const proofContainer = document.getElementById('receiptProofContainer');
+  const proofImg = document.getElementById('receiptProofImage');
+  if (receipt.paymentProof) {
+    proofImg.src = receipt.paymentProof;
+    proofContainer.classList.remove('hidden');
+  } else {
+    proofContainer.classList.add('hidden');
+  }
+
+  document.getElementById('clientWithdrawalReceiptModal').classList.remove('hidden');
+}
+
+function closeClientWithdrawalReceiptModal() {
+  document.getElementById('clientWithdrawalReceiptModal').classList.add('hidden');
+}
+
+function printReceipt() {
+  const printContent = document.getElementById('printableReceiptArea');
+  if (!printContent) return;
+
+  const win = window.open('', '_blank', 'width=800,height=900');
+  win.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Withdrawal Receipt - Moffin</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      <style>
+        body { font-family: 'Inter', sans-serif; padding: 24px; color: #1e293b; }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+        th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+        @media print {
+          button { display: none !important; }
+        }
+      </style>
+    </head>
+    <body>
+      ${printContent.innerHTML}
+      <script>
+        window.onload = () => { window.print(); }
+      </script>
+    </body>
+    </html>
+  `);
+  win.document.close();
+}
+
+function openImageInNewTab(url) {
+  if (url) window.open(url, '_blank');
 }
 
 

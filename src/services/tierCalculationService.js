@@ -158,15 +158,19 @@ const findTierByCommissionRate = async (rate) => {
  */
 const calculateMonthlyTopUpSum = async (vendorId, year, month, session = null) => {
   const { start, end } = getMonthDateRange(year, month);
-  const vendorObjId = new mongoose.Types.ObjectId(vendorId);
+  const vendorObjId = mongoose.Types.ObjectId.isValid(vendorId) ? new mongoose.Types.ObjectId(vendorId) : vendorId;
+  const vendorIdStr = vendorId ? vendorId.toString() : '';
 
-  // 1. Sum from approved PaymentConfirmation (by createdAt or verifiedAt)
+  const TopUpRequest = require('../models/topUpRequestModel');
+
+  // 1. Sum from approved PaymentConfirmation (by createdAt, verifiedAt, or transactionDate)
   const pQuery = {
     vendorId: vendorObjId,
     status: 'APPROVED',
     $or: [
       { createdAt: { $gte: start, $lt: end } },
-      { verifiedAt: { $gte: start, $lt: end } }
+      { verifiedAt: { $gte: start, $lt: end } },
+      { transactionDate: { $gte: start, $lt: end } }
     ]
   };
 
@@ -187,21 +191,53 @@ const calculateMonthlyTopUpSum = async (vendorId, year, month, session = null) =
     { $group: { _id: null, total: { $sum: '$amount' } } }
   ];
 
+  // 3. Sum from TopUpRequest (COMPLETED or APPROVED)
+  const tQuery = {
+    vendorId: vendorObjId,
+    status: { $in: ['COMPLETED', 'APPROVED'] },
+    $or: [
+      { createdAt: { $gte: start, $lt: end } },
+      { 'adminResponse.respondedAt': { $gte: start, $lt: end } }
+    ]
+  };
+
+  const tPipeline = [
+    { $match: tQuery },
+    {
+      $group: {
+        _id: null,
+        total: {
+          $sum: {
+            $cond: [
+              { $gt: ['$adminResponse.approvedAmount', 0] },
+              '$adminResponse.approvedAmount',
+              '$requestedAmount'
+            ]
+          }
+        }
+      }
+    }
+  ];
+
   let pResult = null;
   let wResult = null;
+  let tResult = null;
 
   if (session) {
     pResult = await PaymentConfirmation.aggregate(pPipeline).session(session);
     wResult = await WalletTransaction.aggregate(wPipeline).session(session);
+    tResult = await TopUpRequest.aggregate(tPipeline).session(session);
   } else {
     pResult = await PaymentConfirmation.aggregate(pPipeline);
     wResult = await WalletTransaction.aggregate(wPipeline);
+    tResult = await TopUpRequest.aggregate(tPipeline);
   }
 
   const pTotal = pResult && pResult.length > 0 ? Number(pResult[0].total) : 0;
   const wTotal = wResult && wResult.length > 0 ? Number(wResult[0].total) : 0;
+  const tTotal = tResult && tResult.length > 0 ? Number(tResult[0].total) : 0;
 
-  return Math.max(pTotal, wTotal);
+  return Math.max(pTotal, wTotal, tTotal);
 };
 
 /**
@@ -279,8 +315,15 @@ const recalculateVendorMonthlyTier = async (vendorId, options = {}) => {
 
   const monthlyRecord = await getOrCreateMonthlyRecord(vendorId, year, month, session);
 
-  // If month is already finalized/closed, it is immutable
-  if (monthlyRecord.isClosed) {
+  // If this is the current active month, it should always remain open and dynamically recalculated
+  const isCurrentActiveMonth = (year === curYear && month === curMonth);
+  if (isCurrentActiveMonth && monthlyRecord.isClosed) {
+    monthlyRecord.isClosed = false;
+    monthlyRecord.closedAt = null;
+  }
+
+  // If month is a past finalized/closed month, it is immutable
+  if (monthlyRecord.isClosed && !isCurrentActiveMonth) {
     return monthlyRecord;
   }
 

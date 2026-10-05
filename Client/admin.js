@@ -18,6 +18,12 @@ let adminWithdrawalsCache = [];
 let currentWithdrawalFilter = 'all';
 let withdrawalCurrentPage = 1;
 let withdrawalTotalPages = 1;
+let adminProfitsCache = null;
+let adminProfitCurrentPage = 1;
+let adminProfitTotalPages = 1;
+let adminProfitSelectedClientId = null;
+let adminProfitSelectedClientName = null;
+let adminProfitSearchDebounce = null;
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
@@ -77,6 +83,10 @@ function switchAdminTab(tabId) {
     fetchAdminClientStats();
     fetchAdminClients();
     fetchAdminClientTransactions();
+  } else if (tabId === 'clientWithdrawalsManagementTab') {
+    fetchAdminClientWithdrawals();
+  } else if (tabId === 'profitsTab') {
+    fetchAdminProfits();
   } else if (tabId === 'withdrawalsManagementTab') {
     fetchAdminWithdrawals();
   } else if (tabId === 'tiersManagementTab') {
@@ -158,6 +168,7 @@ function refreshAllDashboardData() {
   fetchAdminRequestHistory();
   fetchAdminTierAnalytics();
   fetchAdminTiersList();
+  fetchAdminClientWithdrawals();
 }
 
 /**
@@ -3134,17 +3145,26 @@ async function openAdminWithdrawalDetailModal(withdrawalId) {
 
     // Vendor Confirmation Box
     let vendorConfBox = '';
-    if (w.vendorConfirmation?.confirmedAt) {
-      const isApproved = w.vendorConfirmation.isApproved;
+    if (w.status === 'APPROVED' || w.vendorConfirmation?.isApproved === true) {
       vendorConfBox = `
-        <div style="background: ${isApproved ? '#f0fdf4' : '#fef2f2'}; border: 1px solid ${isApproved ? '#86efac' : '#fecaca'}; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
-          <h4 style="font-size: 0.95rem; color: ${isApproved ? '#166534' : '#991b1b'}; margin: 0 0 0.5rem 0;">
-            ${isApproved ? '✅ Vendor Received & Approved Payout' : '❌ Vendor Reported Payout Not Received'}
+        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+          <h4 style="font-size: 0.95rem; color: #166534; margin: 0 0 0.5rem 0;">
+            ✅ Vendor Received & Approved Payout
           </h4>
-          <strong>Decision:</strong> ${isApproved ? 'FUNDS RECEIVED' : 'REJECTED'}<br>
-          <strong>Confirmed Date:</strong> ${new Date(w.vendorConfirmation.confirmedAt).toLocaleString('en-IN')}<br>
-          ${w.vendorConfirmation.vendorNotes ? `<strong>Vendor Notes:</strong> <em>${w.vendorConfirmation.vendorNotes}</em><br>` : ''}
-          ${w.vendorConfirmation.rejectionReason ? `<strong>Rejection Reason:</strong> <span style="color: #dc2626;">${w.vendorConfirmation.rejectionReason}</span><br>` : ''}
+          <strong>Decision:</strong> FUNDS RECEIVED & SETTLED<br>
+          ${w.vendorConfirmation?.confirmedAt ? `<strong>Confirmed Date:</strong> ${new Date(w.vendorConfirmation.confirmedAt).toLocaleString('en-IN')}<br>` : ''}
+          ${w.vendorConfirmation?.vendorNotes ? `<strong>Vendor Notes:</strong> <em>${w.vendorConfirmation.vendorNotes}</em><br>` : ''}
+        </div>
+      `;
+    } else if (w.status === 'REJECTED' || (w.vendorConfirmation?.confirmedAt && w.vendorConfirmation?.isApproved === false)) {
+      vendorConfBox = `
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+          <h4 style="font-size: 0.95rem; color: #991b1b; margin: 0 0 0.5rem 0;">
+            ❌ Vendor Reported Payout Not Received
+          </h4>
+          <strong>Decision:</strong> REJECTED<br>
+          ${w.vendorConfirmation?.confirmedAt ? `<strong>Confirmed Date:</strong> ${new Date(w.vendorConfirmation.confirmedAt).toLocaleString('en-IN')}<br>` : ''}
+          ${w.vendorConfirmation?.rejectionReason ? `<strong>Rejection Reason:</strong> <span style="color: #dc2626;">${w.vendorConfirmation.rejectionReason}</span><br>` : ''}
         </div>
       `;
     }
@@ -3199,6 +3219,842 @@ async function openAdminWithdrawalDetailModal(withdrawalId) {
 function closeAdminWithdrawalDetailModal() {
   document.getElementById('adminWithdrawalDetailModal').classList.add('hidden');
 }
+
+// =============================================================================
+// 13. ADMIN CLIENT WITHDRAWALS & PAYOUT PROCESSING
+// =============================================================================
+let adminClientWithdrawalsCache = [];
+let adminClientWithdrawalCurrentPage = 1;
+let adminClientWithdrawalStatusFilter = 'all';
+let adminClientWithdrawalSearchQuery = '';
+
+async function fetchAdminClientWithdrawals(page = 1) {
+  if (!adminToken) return;
+  adminClientWithdrawalCurrentPage = page;
+
+  const tbody = document.getElementById('adminClientWithdrawalsTbody');
+  if (!tbody) return;
+
+  try {
+    let url = `${API_BASE}/admin/client-withdrawals?page=${page}&limit=15`;
+    if (adminClientWithdrawalStatusFilter && adminClientWithdrawalStatusFilter !== 'all') {
+      url += `&status=${encodeURIComponent(adminClientWithdrawalStatusFilter)}`;
+    }
+    if (adminClientWithdrawalSearchQuery && adminClientWithdrawalSearchQuery.trim()) {
+      url += `&search=${encodeURIComponent(adminClientWithdrawalSearchQuery.trim())}`;
+    }
+
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const data = await res.json();
+
+    if (data.success && data.data) {
+      adminClientWithdrawalsCache = data.data.withdrawals || [];
+      const stats = data.data.stats || {};
+      const pagination = data.data.pagination || { total: 0, totalPages: 1 };
+
+      // Update KPI Cards
+      const totalCountElem = document.getElementById('statTotalClientWithdrawalsCount');
+      const settledVolElem = document.getElementById('statSettledClientWithdrawalsVolume');
+      const totalAdminCommElem = document.getElementById('statTotalClientAdminCommission');
+      const pendingCountElem = document.getElementById('statPendingAdminClientPaymentCount');
+      const sentCountElem = document.getElementById('statPaymentSentClientCount');
+      const approvedCountElem = document.getElementById('statApprovedClientWithdrawalsCount');
+
+      if (totalCountElem) totalCountElem.textContent = stats.totalCount || 0;
+      if (settledVolElem) settledVolElem.textContent = `₹${(stats.approvedVolume || 0).toLocaleString('en-IN')}`;
+      if (totalAdminCommElem) totalAdminCommElem.textContent = `₹${(stats.totalAdminCommissionDeducted || 0).toLocaleString('en-IN')}`;
+      if (pendingCountElem) pendingCountElem.textContent = stats.pendingAdminPaymentCount || 0;
+      if (sentCountElem) sentCountElem.textContent = stats.paymentSentCount || 0;
+      if (approvedCountElem) approvedCountElem.textContent = stats.approvedCount || 0;
+
+      // Update Pagination
+      const pageIndicator = document.getElementById('clientWithdrawalPageIndicator');
+      const paginationInfo = document.getElementById('clientWithdrawalPaginationInfo');
+      const prevBtn = document.getElementById('btnClientWithdrawalPrevPage');
+      const nextBtn = document.getElementById('btnClientWithdrawalNextPage');
+
+      if (pageIndicator) pageIndicator.textContent = `Page ${page} of ${pagination.totalPages || 1}`;
+      if (paginationInfo) paginationInfo.textContent = `Showing ${adminClientWithdrawalsCache.length} of ${pagination.total || 0} requests`;
+      if (prevBtn) prevBtn.disabled = page <= 1;
+      if (nextBtn) nextBtn.disabled = page >= (pagination.totalPages || 1);
+
+      renderAdminClientWithdrawals(adminClientWithdrawalsCache);
+    } else {
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state">${data.message || 'Failed to load client withdrawals'}</td></tr>`;
+    }
+  } catch (err) {
+    console.error('fetchAdminClientWithdrawals error:', err);
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state" style="color: #dc2626;">Network error loading client withdrawals</td></tr>';
+  }
+}
+
+function renderAdminClientWithdrawals(withdrawals) {
+  const tbody = document.getElementById('adminClientWithdrawalsTbody');
+  if (!tbody) return;
+
+  if (!withdrawals || withdrawals.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No client withdrawal requests matching criteria.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = withdrawals.map(w => {
+    const clientName = w.clientId ? `${w.clientId.firstName || ''} ${w.clientId.lastName || ''}`.trim() : 'Client';
+    const clientEmail = w.clientId?.email || '--';
+    const clientMobile = w.clientId?.mobile || '--';
+    const clientBal = w.clientId?.balance !== undefined ? `₹${Number(w.clientId.balance).toLocaleString('en-IN')}` : '--';
+
+    const reqAmt = (w.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const adminComm = w.adminPaymentDetails?.adminCommission !== undefined && w.adminPaymentDetails?.adminCommission !== null
+      ? `₹${Number(w.adminPaymentDetails.adminCommission).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : '<span class="text-muted">--</span>';
+
+    const netPaid = w.adminPaymentDetails?.paidAmount !== undefined && w.adminPaymentDetails?.paidAmount !== null
+      ? `₹${Number(w.adminPaymentDetails.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : `₹${reqAmt}`;
+
+    const dt = w.createdAt ? new Date(w.createdAt).toLocaleString('en-IN') : '--';
+
+    let destText = '--';
+    if (w.destinationType === 'bank') {
+      destText = `🏦 <strong>${w.destinationDetails?.bankName || 'Bank'}</strong><br><small class="text-muted">A/C: ${w.destinationDetails?.accountNumber || '--'} (${w.destinationDetails?.ifscCode || '--'})</small>`;
+    } else if (w.destinationType === 'wallet') {
+      destText = `💳 <strong>${w.destinationDetails?.walletName || 'UPI'}</strong><br><small class="text-muted">${w.destinationDetails?.walletId || '--'}</small>`;
+    }
+
+    let statusBadge = '<span class="badge badge-warning">PENDING</span>';
+    let actionBtn = '';
+
+    if (w.status === 'PENDING_ADMIN_PAYMENT') {
+      statusBadge = '<span class="badge" style="background: #f59e0b; color: #fff; font-weight: 700;">⏳ Awaiting Payment</span>';
+      actionBtn = `
+        <button class="btn btn-sm btn-primary" style="font-weight: 700; font-size: 0.8rem;" onclick="openAdminProcessClientWithdrawalModal('${w._id}')">
+          🚀 Review & Payout
+        </button>
+      `;
+    } else if (w.status === 'PAYMENT_SENT_BY_ADMIN') {
+      statusBadge = '<span class="badge" style="background: #0284c7; color: #fff;">💳 Sent to Client</span>';
+      actionBtn = `
+        <button class="btn btn-sm btn-secondary" style="font-size: 0.8rem;" onclick="openAdminProcessClientWithdrawalModal('${w._id}')">
+          🔍 View / Edit Proof
+        </button>
+      `;
+    } else if (w.status === 'APPROVED') {
+      statusBadge = '<span class="badge badge-success">✅ Settled & Approved</span>';
+      actionBtn = `
+        <button class="btn btn-sm btn-secondary" style="font-size: 0.8rem;" onclick="openAdminProcessClientWithdrawalModal('${w._id}')">
+          🔍 View Details
+        </button>
+      `;
+    } else if (w.status === 'REJECTED') {
+      statusBadge = '<span class="badge badge-danger">❌ Rejected</span>';
+      actionBtn = `
+        <button class="btn btn-sm btn-secondary" style="font-size: 0.8rem;" onclick="openAdminProcessClientWithdrawalModal('${w._id}')">
+          🔍 View Reason
+        </button>
+      `;
+    }
+
+    const utrText = w.adminPaymentDetails?.transactionId
+      ? `<code style="font-size: 0.85rem; font-weight: 700; color: #4338ca;">${w.adminPaymentDetails.transactionId}</code>`
+      : '<span class="text-muted">--</span>';
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight: 800; font-family: monospace; color: #1e293b;">${w.withdrawalId}</div>
+          <div style="font-size: 0.75rem; color: #64748b;">${dt}</div>
+        </td>
+        <td>
+          <div style="font-weight: 700; color: #0f172a;">${clientName}</div>
+          <div style="font-size: 0.78rem; color: #64748b;">${clientEmail}</div>
+          <div style="font-size: 0.75rem; color: #059669; font-weight: 600;">Bal: ${clientBal}</div>
+        </td>
+        <td style="font-weight: 800; color: #0f172a; font-size: 1rem;">₹${reqAmt}</td>
+        <td style="color: #dc2626; font-weight: 700;">${adminComm}</td>
+        <td style="color: #059669; font-weight: 800; font-size: 1.05rem;">${netPaid}</td>
+        <td style="font-size: 0.85rem;">${destText}</td>
+        <td>${statusBadge}</td>
+        <td>${utrText}</td>
+        <td>${actionBtn}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function setAdminClientWithdrawalFilter(status, event) {
+  adminClientWithdrawalStatusFilter = status;
+  if (event && event.target) {
+    const parent = event.target.closest('.tabs');
+    if (parent) {
+      parent.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+  }
+  fetchAdminClientWithdrawals(1);
+}
+
+let clientWithdrawalSearchTimeout = null;
+function handleAdminClientWithdrawalSearch() {
+  clearTimeout(clientWithdrawalSearchTimeout);
+  clientWithdrawalSearchTimeout = setTimeout(() => {
+    const input = document.getElementById('adminClientWithdrawalSearchInput');
+    adminClientWithdrawalSearchQuery = input ? input.value : '';
+    fetchAdminClientWithdrawals(1);
+  }, 350);
+}
+
+function changeAdminClientWithdrawalPage(delta) {
+  fetchAdminClientWithdrawals(adminClientWithdrawalCurrentPage + delta);
+}
+
+async function openAdminProcessClientWithdrawalModal(withdrawalId) {
+  if (!adminToken) return;
+
+  const modal = document.getElementById('adminProcessClientWithdrawalModal');
+  if (!modal) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/client-withdrawals/${withdrawalId}`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const data = await res.json();
+
+    if (!data.success || !data.data?.withdrawal) {
+      showToast(data.message || 'Failed to load client withdrawal details', 'error');
+      return;
+    }
+
+    const { withdrawal, client, clientFinancials, transactionHistory } = data.data;
+
+    document.getElementById('processClientWithdrawalId').value = withdrawal._id;
+    document.getElementById('processClientWithdrawalGrossAmount').value = withdrawal.amount;
+
+    // Status Alert Box
+    const alertBox = document.getElementById('procClientStatusAlertBox');
+    const submitBtn = document.getElementById('btnAdminSubmitClientWithdrawalPay');
+
+    if (alertBox) {
+      if (withdrawal.status === 'APPROVED') {
+        alertBox.className = '';
+        alertBox.innerHTML = `
+          <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.5rem;">✅</span>
+              <div>
+                <strong style="color: #166534; font-size: 0.95rem;">Withdrawal Verified & Settled by Client</strong>
+                <div style="font-size: 0.8rem; color: #15803d;">
+                  Settled on: ${withdrawal.clientConfirmation?.confirmedAt ? new Date(withdrawal.clientConfirmation.confirmedAt).toLocaleString('en-IN') : (withdrawal.financialSettlement?.settledAt ? new Date(withdrawal.financialSettlement.settledAt).toLocaleString('en-IN') : 'N/A')}
+                </div>
+              </div>
+            </div>
+            <span class="badge badge-success" style="font-size: 0.85rem; padding: 4px 10px;">SETTLED / VERIFIED</span>
+          </div>
+        `;
+        if (submitBtn) {
+          submitBtn.innerHTML = '✅ Payout Already Settled & Approved';
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = '0.7';
+          submitBtn.style.cursor = 'default';
+        }
+      } else if (withdrawal.status === 'PAYMENT_SENT_BY_ADMIN') {
+        alertBox.className = '';
+        alertBox.innerHTML = `
+          <div style="background: #eff6ff; border: 1.5px solid #93c5fd; border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.5rem;">💳</span>
+              <div>
+                <strong style="color: #1e40af; font-size: 0.95rem;">Payment Proof Sent — Awaiting Client Confirmation</strong>
+                <div style="font-size: 0.8rem; color: #1d4ed8;">
+                  Paid on: ${withdrawal.adminPaymentDetails?.paidAt ? new Date(withdrawal.adminPaymentDetails.paidAt).toLocaleString('en-IN') : 'N/A'}
+                </div>
+              </div>
+            </div>
+            <span class="badge badge-info" style="font-size: 0.85rem; padding: 4px 10px;">SENT TO CLIENT</span>
+          </div>
+        `;
+        if (submitBtn) {
+          submitBtn.innerHTML = '🔄 Update Proof & Resend to Client';
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+          submitBtn.style.cursor = 'pointer';
+        }
+      } else if (withdrawal.status === 'REJECTED') {
+        alertBox.className = '';
+        alertBox.innerHTML = `
+          <div style="background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 8px; padding: 12px;">
+            <strong style="color: #991b1b; font-size: 0.95rem;">❌ Client Reported Payment Not Received</strong>
+            <div style="font-size: 0.82rem; color: #b91c1c; margin-top: 4px;">
+              Reason: <em>${withdrawal.clientConfirmation?.rejectionReason || 'Funds not received in destination account'}</em>
+            </div>
+          </div>
+        `;
+        if (submitBtn) {
+          submitBtn.innerHTML = '🚀 Resubmit Corrected Payout';
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+          submitBtn.style.cursor = 'pointer';
+        }
+      } else {
+        alertBox.className = 'hidden';
+        alertBox.innerHTML = '';
+        if (submitBtn) {
+          submitBtn.innerHTML = '🚀 Submit Payout Proof & Send to Client';
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+          submitBtn.style.cursor = 'pointer';
+        }
+      }
+    }
+
+    // Populate Client Overview
+    const cName = client ? `${client.firstName || ''} ${client.lastName || ''}`.trim() : 'Client';
+    document.getElementById('procClientName').textContent = cName;
+    document.getElementById('procClientEmail').textContent = `${client?.email || '--'} | 📞 ${client?.mobile || '--'}`;
+    document.getElementById('procClientBalance').textContent = `₹${(client?.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    document.getElementById('procClientRequestedAmount').textContent = `₹${(withdrawal.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+    let destHtml = '--';
+    if (withdrawal.destinationType === 'bank') {
+      const d = withdrawal.destinationDetails || {};
+      destHtml = `🏦 <strong>${d.bankName || 'Bank'}</strong> | A/C No: <code>${d.accountNumber || '--'}</code> | IFSC: <code>${d.ifscCode || '--'}</code> | Holder: <strong>${d.accountHolderName || '--'}</strong>${d.branchName ? ` | Branch: ${d.branchName}` : ''}`;
+    } else if (withdrawal.destinationType === 'wallet') {
+      const d = withdrawal.destinationDetails || {};
+      destHtml = `💳 <strong>${d.walletName || 'UPI'}</strong> | UPI ID: <code style="font-size: 1rem; color: #4338ca;">${d.walletId || '--'}</code>`;
+    }
+    document.getElementById('procClientDestinationDetails').innerHTML = destHtml;
+
+    // Populate Vendor Commission Summary & Transaction History
+    const totalVendorComm = clientFinancials?.totalVendorCommission || 0;
+    cachedModalVendorCommission = totalVendorComm;
+    document.getElementById('procClientTotalVendorCommission').textContent = `₹${totalVendorComm.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+    const txTbody = document.getElementById('procClientTransactionsTbody');
+    if (transactionHistory && transactionHistory.length > 0) {
+      txTbody.innerHTML = transactionHistory.map(tx => {
+        const txDt = tx.createdAt ? new Date(tx.createdAt).toLocaleDateString('en-IN') : '--';
+        const amtPaid = (tx.approvedAmount || tx.amount || 0).toLocaleString('en-IN');
+        const commAmt = (tx.commissionAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        return `
+          <tr>
+            <td>
+              <code style="font-weight: 700; color: #1e293b;">${tx.transactionId}</code>
+              <div style="font-size: 0.72rem; color: #64748b;">${txDt}</div>
+            </td>
+            <td><strong>${tx.vendor?.name || 'Vendor'}</strong></td>
+            <td style="font-weight: 700; color: #059669;">₹${amtPaid}</td>
+            <td><span class="badge badge-info" style="font-size: 0.72rem;">${tx.vendorTier || 'Standard'}</span></td>
+            <td>
+              <div style="font-weight: 800; color: #7e22ce;">₹${commAmt}</div>
+              <small class="text-muted">${tx.commissionRate}%</small>
+            </td>
+            <td><span class="badge ${tx.status === 'APPROVED' || tx.status === 'COMPLETED' ? 'badge-success' : 'badge-warning'}" style="font-size: 0.72rem;">${tx.status}</span></td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      txTbody.innerHTML = '<tr><td colspan="6" class="empty-state">No past vendor payment transactions found for this client.</td></tr>';
+    }
+
+    // Populate Existing Admin Payment details (if already sent)
+    const existingCommAmt = withdrawal.adminPaymentDetails?.adminCommission !== undefined
+      ? Number(withdrawal.adminPaymentDetails.adminCommission)
+      : (withdrawal.financialSettlement?.adminCommissionDeducted !== undefined ? Number(withdrawal.financialSettlement.adminCommissionDeducted) : 0);
+    const existingCommPct = withdrawal.adminPaymentDetails?.adminCommissionPercentage !== undefined
+      ? Number(withdrawal.adminPaymentDetails.adminCommissionPercentage)
+      : (withdrawal.amount > 0 ? Number(((existingCommAmt / withdrawal.amount) * 100).toFixed(2)) : 0);
+
+    const percentInput = document.getElementById('processAdminCommissionPercentInput');
+    const amountInput = document.getElementById('processAdminCommissionInput');
+
+    if (percentInput) percentInput.value = existingCommPct;
+    if (amountInput) amountInput.value = existingCommAmt;
+
+    document.getElementById('adminClientPayoutUtr').value = withdrawal.adminPaymentDetails?.transactionId || '';
+    document.getElementById('adminClientPayoutNotes').value = withdrawal.adminPaymentDetails?.adminNotes || '';
+    document.getElementById('adminClientPayoutProofFile').value = '';
+
+    // Proof screenshot preview
+    const proofPreview = document.getElementById('procClientExistingProofPreview');
+    const proofImg = document.getElementById('procClientExistingProofImg');
+    const proofLink = document.getElementById('procClientExistingProofLink');
+    if (proofPreview && proofImg && proofLink) {
+      if (withdrawal.adminPaymentDetails?.paymentProof) {
+        proofImg.src = withdrawal.adminPaymentDetails.paymentProof;
+        proofLink.href = withdrawal.adminPaymentDetails.paymentProof;
+        proofPreview.classList.remove('hidden');
+      } else {
+        proofPreview.classList.add('hidden');
+      }
+    }
+
+    calculateClientNetPayoutUI();
+
+    modal.classList.remove('hidden');
+  } catch (err) {
+    console.error('openAdminProcessClientWithdrawalModal error:', err);
+    showToast('Network error loading withdrawal details', 'error');
+  }
+}
+
+// Alias for details button compatibility
+const openAdminClientWithdrawalDetailsModal = openAdminProcessClientWithdrawalModal;
+
+let cachedModalVendorCommission = 0;
+
+function handleAdminCommissionPercentChange() {
+  const gross = Number(document.getElementById('processClientWithdrawalGrossAmount')?.value) || 0;
+  const percentInput = document.getElementById('processAdminCommissionPercentInput');
+  const amountInput = document.getElementById('processAdminCommissionInput');
+
+  let pct = Number(percentInput?.value);
+  if (isNaN(pct) || pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+
+  const calculatedAmount = Number(((gross * pct) / 100).toFixed(2));
+  if (amountInput) {
+    amountInput.value = calculatedAmount;
+  }
+
+  calculateClientNetPayoutUI();
+}
+
+function handleAdminCommissionAmountChange() {
+  const gross = Number(document.getElementById('processClientWithdrawalGrossAmount')?.value) || 0;
+  const percentInput = document.getElementById('processAdminCommissionPercentInput');
+  const amountInput = document.getElementById('processAdminCommissionInput');
+
+  let amt = Number(amountInput?.value);
+  if (isNaN(amt) || amt < 0) amt = 0;
+
+  const calculatedPct = gross > 0 ? Number(((amt / gross) * 100).toFixed(2)) : 0;
+  if (percentInput) {
+    percentInput.value = calculatedPct;
+  }
+
+  calculateClientNetPayoutUI();
+}
+
+function calculateClientNetPayoutUI() {
+  const gross = Number(document.getElementById('processClientWithdrawalGrossAmount')?.value) || 0;
+  const vendorComm = Number(cachedModalVendorCommission) || 0;
+  const adminComm = Number(document.getElementById('processAdminCommissionInput')?.value) || 0;
+  const adminPercent = Number(document.getElementById('processAdminCommissionPercentInput')?.value) || 0;
+
+  const totalDeductions = Number((vendorComm + adminComm).toFixed(2));
+  const net = Number((gross - totalDeductions).toFixed(2));
+
+  const grossElem = document.getElementById('procCalcGrossAmt');
+  const vendorCommElem = document.getElementById('procCalcVendorComm');
+  const adminCommElem = document.getElementById('procCalcAdminComm');
+  const adminPercentTag = document.getElementById('procCalcAdminPercentTag');
+  const highlightElem = document.getElementById('procClientNetPayoutHighlight');
+  const formulaElem = document.getElementById('procClientCalculationFormula');
+  const statusTag = document.getElementById('procCalculationStatusTag');
+  const submitBtn = document.getElementById('btnAdminSubmitClientWithdrawalPay');
+
+  if (grossElem) grossElem.textContent = `₹${gross.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (vendorCommElem) vendorCommElem.textContent = `- ₹${vendorComm.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (adminCommElem) adminCommElem.textContent = `- ₹${adminComm.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (adminPercentTag) adminPercentTag.textContent = `${adminPercent}%`;
+
+  if (highlightElem) {
+    highlightElem.textContent = `₹${net.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    if (net < 0) {
+      highlightElem.style.color = '#dc2626';
+    } else {
+      highlightElem.style.color = '#059669';
+    }
+  }
+
+  if (formulaElem) {
+    formulaElem.textContent = `(Gross ₹${gross.toLocaleString('en-IN')} - Vendor Comm ₹${vendorComm.toLocaleString('en-IN')} - Admin Cut ₹${adminComm.toLocaleString('en-IN')})`;
+  }
+
+  if (net < 0) {
+    if (statusTag) {
+      statusTag.textContent = '⚠️ Deductions Exceed Gross!';
+      statusTag.style.background = '#fef2f2';
+      statusTag.style.color = '#dc2626';
+      statusTag.style.borderColor = '#fecaca';
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.6';
+      submitBtn.style.cursor = 'not-allowed';
+    }
+  } else {
+    if (statusTag) {
+      statusTag.textContent = 'Status: Ready to Transfer';
+      statusTag.style.background = '#ecfdf5';
+      statusTag.style.color = '#059669';
+      statusTag.style.borderColor = '#a7f3d0';
+    }
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+      submitBtn.style.cursor = 'pointer';
+    }
+  }
+}
+
+function closeAdminProcessClientWithdrawalModal() {
+  const modal = document.getElementById('adminProcessClientWithdrawalModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleAdminSubmitClientWithdrawalPayment(event) {
+  event.preventDefault();
+
+  const withdrawalId = document.getElementById('processClientWithdrawalId')?.value;
+  const gross = Number(document.getElementById('processClientWithdrawalGrossAmount')?.value) || 0;
+  const adminCommissionPercentage = Number(document.getElementById('processAdminCommissionPercentInput')?.value) || 0;
+  const adminCommission = Number(document.getElementById('processAdminCommissionInput')?.value) || 0;
+  const vendorCommissionDeducted = Number(cachedModalVendorCommission) || 0;
+  const transactionId = document.getElementById('adminClientPayoutUtr')?.value.trim();
+  const adminNotes = document.getElementById('adminClientPayoutNotes')?.value.trim();
+  const fileInput = document.getElementById('adminClientPayoutProofFile');
+  const submitBtn = document.getElementById('btnAdminSubmitClientWithdrawalPay');
+
+  if (!withdrawalId) {
+    showToast('Invalid withdrawal request ID', 'error');
+    return;
+  }
+
+  if (!transactionId) {
+    showToast('Please enter the Bank Reference / UTR Transaction ID', 'error');
+    return;
+  }
+
+  const totalDeductions = vendorCommissionDeducted + adminCommission;
+  if (totalDeductions >= gross) {
+    showToast(`Total deductions (₹${totalDeductions.toLocaleString('en-IN')}) cannot exceed or equal requested amount (₹${gross.toLocaleString('en-IN')})`, 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('transactionId', transactionId);
+  formData.append('adminCommissionPercentage', adminCommissionPercentage);
+  formData.append('adminCommission', adminCommission);
+  formData.append('vendorCommissionDeducted', vendorCommissionDeducted);
+  if (adminNotes) formData.append('adminNotes', adminNotes);
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    formData.append('paymentProof', fileInput.files[0]);
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '⏳ Submitting Payout Proof...';
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/client-withdrawals/${withdrawalId}/send-payment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('Client payout proof & UTR submitted successfully! Sent to Client for confirmation.', 'success');
+      closeAdminProcessClientWithdrawalModal();
+      fetchAdminClientWithdrawals(adminClientWithdrawalCurrentPage);
+    } else {
+      showToast(data.message || 'Failed to submit client payout', 'error');
+    }
+  } catch (err) {
+    console.error('handleAdminSubmitClientWithdrawalPayment error:', err);
+    showToast('Network error submitting client payout proof', 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '🚀 Submit Payout Proof & Send to Client';
+  }
+}
+
+// =============================================================================
+// ADMIN PROFIT ANALYTICS & SETTLEMENT LEDGER
+// =============================================================================
+
+/**
+ * Fetch and render Admin Profit Analytics & Records
+ */
+async function fetchAdminProfits(page = 1) {
+  if (!adminToken) return;
+
+  adminProfitCurrentPage = page;
+  const search = document.getElementById('adminProfitSearchInput')?.value.trim() || '';
+  const status = document.getElementById('adminProfitStatusFilter')?.value || 'all';
+
+  let url = `${API_BASE}/admin/profits?page=${page}&limit=20&status=${encodeURIComponent(status)}`;
+  if (search) {
+    url += `&search=${encodeURIComponent(search)}`;
+  }
+  if (adminProfitSelectedClientId) {
+    url += `&clientId=${encodeURIComponent(adminProfitSelectedClientId)}`;
+  }
+
+  try {
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+
+    const data = await res.json();
+    if (data.success && data.data) {
+      adminProfitsCache = data.data;
+      renderAdminProfitSummaryCards(data.data.summary);
+      renderAdminClientProfitsSummary(data.data.clientBreakdown || []);
+      renderAdminProfitLedger(data.data.profitLedger || [], data.data.pagination);
+    } else {
+      showToast(data.message || 'Failed to fetch profit analytics', 'error');
+    }
+  } catch (err) {
+    console.error('fetchAdminProfits error:', err);
+    showToast('Failed to load profit analytics from server', 'error');
+  }
+}
+
+/**
+ * Render KPI Cards for Admin Profit
+ */
+function renderAdminProfitSummaryCards(summary = {}) {
+  const realizedEl = document.getElementById('statProfitRealized');
+  const settledCountEl = document.getElementById('statProfitSettledCount');
+  const pendingEl = document.getElementById('statProfitPending');
+  const pendingCountEl = document.getElementById('statProfitPendingCount');
+  const volumeEl = document.getElementById('statProfitSettledVolume');
+  const marginEl = document.getElementById('statProfitAvgMargin');
+  const clientsCountEl = document.getElementById('statProfitableClientsCount');
+
+  if (realizedEl) realizedEl.textContent = `₹${(summary.totalRealizedProfit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (settledCountEl) settledCountEl.textContent = summary.totalSettledCount || 0;
+  if (pendingEl) pendingEl.textContent = `₹${(summary.totalPendingProfit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (pendingCountEl) pendingCountEl.textContent = summary.totalPendingCount || 0;
+  if (volumeEl) volumeEl.textContent = `₹${(summary.totalSettledVolume || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (marginEl) marginEl.textContent = `${(summary.avgProfitMargin || 0).toFixed(2)}%`;
+  if (clientsCountEl) clientsCountEl.textContent = summary.totalProfitableClientsCount || 0;
+}
+
+/**
+ * Render Per-Client Profit Leaderboard Table
+ */
+function renderAdminClientProfitsSummary(clients = []) {
+  const tbody = document.getElementById('adminClientProfitsSummaryTbody');
+  if (!tbody) return;
+
+  if (!clients || clients.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No client profit records found yet. Profits will appear when client withdrawals are processed with admin commission.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = clients.map(c => {
+    const lastDate = c.lastSettlementDate ? new Date(c.lastSettlementDate).toLocaleDateString('en-IN') : 'N/A';
+    const isSelected = adminProfitSelectedClientId === c.clientId;
+
+    return `
+      <tr style="${isSelected ? 'background-color: #f0fdf4;' : ''}">
+        <td>
+          <div style="font-weight: 700; color: #0f172a;">${c.clientName || 'Client'}</div>
+          <div class="text-muted" style="font-size: 0.8rem;">${c.clientEmail || ''}</div>
+          ${c.clientPhone ? `<div class="text-muted" style="font-size: 0.75rem;">📱 ${c.clientPhone}</div>` : ''}
+        </td>
+        <td>
+          <span class="badge badge-info" style="font-size: 0.82rem;">${c.settledCount || 0} Settled</span>
+          ${c.pendingCount ? `<span class="badge badge-warning" style="font-size: 0.82rem;">${c.pendingCount} Pending</span>` : ''}
+        </td>
+        <td style="font-weight: 700; color: #1e293b;">
+          ₹${(c.totalVolume || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </td>
+        <td>
+          <div style="font-weight: 900; color: #059669; font-size: 1.05rem;">
+            ₹${(c.totalRealizedProfit || c.totalProfit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+          ${c.totalPendingProfit > 0 ? `<small style="color: #d97706; font-weight: 600;">(₹${c.totalPendingProfit.toLocaleString('en-IN')} pending)</small>` : ''}
+        </td>
+        <td>
+          <span class="badge" style="background: #ecfdf5; color: #047857; font-weight: 800; border: 1px solid #a7f3d0;">
+            ${(c.avgProfitMargin || 0).toFixed(2)}%
+          </span>
+        </td>
+        <td style="color: #7e22ce; font-weight: 600;">
+          ₹${(c.totalVendorCommission || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </td>
+        <td style="color: #0f172a; font-weight: 700;">
+          ₹${(c.totalNetPaid || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </td>
+        <td style="font-size: 0.85rem; color: #64748b;">
+          ${lastDate}
+        </td>
+        <td>
+          <button
+            class="btn btn-sm ${isSelected ? 'btn-success' : 'btn-secondary'}"
+            onclick="filterAdminProfitsByClient('${c.clientId}', '${(c.clientName || 'Client').replace(/'/g, "\\'")}')"
+            style="font-size: 0.78rem;"
+          >
+            ${isSelected ? '✓ Filtered' : '🔍 Filter Ledger'}
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/**
+ * Render Itemized Profit Ledger Table
+ */
+function renderAdminProfitLedger(ledger = [], pagination = {}) {
+  const tbody = document.getElementById('adminProfitLedgerTbody');
+  if (!tbody) return;
+
+  adminProfitTotalPages = pagination.totalPages || 1;
+  const pageNum = pagination.page || 1;
+  const totalRecords = pagination.totalRecords || 0;
+
+  // Pagination Info text & buttons
+  const infoEl = document.getElementById('adminProfitPaginationInfo');
+  const pageIndicator = document.getElementById('adminProfitPageIndicator');
+  const prevBtn = document.getElementById('btnProfitPrevPage');
+  const nextBtn = document.getElementById('btnProfitNextPage');
+
+  if (infoEl) {
+    const start = totalRecords === 0 ? 0 : (pageNum - 1) * (pagination.limit || 20) + 1;
+    const end = Math.min(pageNum * (pagination.limit || 20), totalRecords);
+    infoEl.textContent = `Showing ${start} to ${end} of ${totalRecords} records`;
+  }
+  if (pageIndicator) pageIndicator.textContent = `Page ${pageNum} of ${adminProfitTotalPages}`;
+  if (prevBtn) prevBtn.disabled = pageNum <= 1;
+  if (nextBtn) nextBtn.disabled = pageNum >= adminProfitTotalPages;
+
+  if (!ledger || ledger.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No matching withdrawal profit records found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = ledger.map(w => {
+    const dateStr = w.settledAt ? new Date(w.settledAt).toLocaleString('en-IN') : (w.createdAt ? new Date(w.createdAt).toLocaleString('en-IN') : 'N/A');
+    const clientName = w.clientId ? `${w.clientId.firstName || ''} ${w.clientId.lastName || ''}`.trim() : 'Client';
+    const clientEmail = w.clientId?.email || 'N/A';
+    const clientPhone = w.clientId?.mobileNumber || w.clientId?.phone || '';
+
+    let statusBadge = '';
+    if (w.status === 'APPROVED') {
+      statusBadge = '<span class="badge badge-success" style="background: #10b981; color: white;">✅ Settled / Verified</span>';
+    } else if (w.status === 'PAYMENT_SENT_BY_ADMIN') {
+      statusBadge = '<span class="badge badge-warning" style="background: #f59e0b; color: white;">⏳ Payment Sent</span>';
+    } else if (w.status === 'REJECTED') {
+      statusBadge = '<span class="badge badge-danger">❌ Rejected</span>';
+    } else {
+      statusBadge = '<span class="badge badge-secondary">Pending</span>';
+    }
+
+    let destText = '';
+    if (w.destinationType === 'bank') {
+      destText = `🏦 ${w.destinationDetails?.bankName || 'Bank'} (${w.destinationDetails?.accountNumber ? '••••' + w.destinationDetails.accountNumber.slice(-4) : ''})`;
+    } else {
+      destText = `📱 ${w.destinationDetails?.walletName || 'UPI/Wallet'} (${w.destinationDetails?.walletId || ''})`;
+    }
+
+    return `
+      <tr>
+        <td>
+          <code style="font-weight: 700; color: #4338ca;">${w.withdrawalId}</code>
+          <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">${dateStr}</div>
+        </td>
+        <td>
+          <div style="font-weight: 700; color: #0f172a;">${clientName}</div>
+          <div class="text-muted" style="font-size: 0.78rem;">${clientEmail}</div>
+          ${clientPhone ? `<div class="text-muted" style="font-size: 0.75rem;">📱 ${clientPhone}</div>` : ''}
+        </td>
+        <td style="font-weight: 700; color: #0f172a; font-size: 1rem;">
+          ₹${(w.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </td>
+        <td>
+          <div style="font-weight: 900; color: #059669; font-size: 1.05rem;">
+            + ₹${(w.adminProfitAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+          <span class="badge" style="background: #ecfdf5; color: #047857; font-weight: 800; border: 1px solid #a7f3d0; font-size: 0.75rem;">
+            ${(w.adminCommissionPercentage || 0).toFixed(2)}% Cut
+          </span>
+        </td>
+        <td style="color: #7e22ce; font-weight: 600;">
+          ₹${(w.vendorCommissionDeducted || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </td>
+        <td style="color: #0f172a; font-weight: 800; font-size: 0.95rem;">
+          ₹${(w.netPaidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </td>
+        <td>
+          <div style="font-size: 0.85rem; font-weight: 600;">${destText}</div>
+          <div style="font-size: 0.78rem; font-family: monospace; color: #475569; margin-top: 2px;">UTR: <strong>${w.transactionId}</strong></div>
+        </td>
+        <td>
+          ${statusBadge}
+        </td>
+        <td>
+          <button
+            class="btn btn-sm btn-info"
+            onclick="openAdminClientWithdrawalDetailsModal('${w._id}')"
+            style="font-size: 0.78rem;"
+          >
+            🔍 Details
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/**
+ * Filter ledger by specific client
+ */
+function filterAdminProfitsByClient(clientId, clientName) {
+  adminProfitSelectedClientId = clientId;
+  adminProfitSelectedClientName = clientName;
+
+  const filterBtn = document.getElementById('adminProfitClearClientFilterBtn');
+  const tagEl = document.getElementById('adminProfitActiveClientTag');
+  if (filterBtn && tagEl) {
+    tagEl.textContent = clientName;
+    filterBtn.classList.remove('hidden');
+  }
+
+  fetchAdminProfits(1);
+}
+
+/**
+ * Clear client filter
+ */
+function clearAdminProfitClientFilter() {
+  adminProfitSelectedClientId = null;
+  adminProfitSelectedClientName = null;
+
+  const filterBtn = document.getElementById('adminProfitClearClientFilterBtn');
+  if (filterBtn) {
+    filterBtn.classList.add('hidden');
+  }
+
+  fetchAdminProfits(1);
+}
+
+/**
+ * Handle debounced search for profits
+ */
+function handleAdminProfitSearch() {
+  if (adminProfitSearchDebounce) clearTimeout(adminProfitSearchDebounce);
+  adminProfitSearchDebounce = setTimeout(() => {
+    fetchAdminProfits(1);
+  }, 350);
+}
+
+/**
+ * Change page for profit ledger
+ */
+function changeAdminProfitPage(delta) {
+  const newPage = adminProfitCurrentPage + delta;
+  if (newPage >= 1 && newPage <= adminProfitTotalPages) {
+    fetchAdminProfits(newPage);
+  }
+}
+
 
 
 
