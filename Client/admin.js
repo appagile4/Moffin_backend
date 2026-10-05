@@ -1974,8 +1974,161 @@ async function triggerMonthlyReset() {
 }
 
 /**
- * 10. System Audit Logs
+ * 10. System Audit Logs & Forensic Viewer
  */
+let cachedAdminAuditLogs = [];
+
+function getAuditActionInfo(action) {
+  const map = {
+    'VENDOR_WITHDRAWAL_APPROVED_AND_SETTLED': { label: 'Vendor Payout Settled', icon: '💸', badgeStyle: 'background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;' },
+    'ADMIN_WITHDRAWAL_PAYMENT_SENT': { label: 'Admin Sent Vendor Payout', icon: '📤', badgeStyle: 'background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;' },
+    'VENDOR_COMMISSION_WITHDRAWAL_REQUESTED': { label: 'Vendor Payout Requested', icon: '📋', badgeStyle: 'background:#fffbeb; color:#92400e; border:1px solid #fde68a;' },
+    'VENDOR_WITHDRAWAL_REJECTED': { label: 'Vendor Payout Rejected', icon: '❌', badgeStyle: 'background:#fef2f2; color:#991b1b; border:1px solid #fecaca;' },
+    'CLIENT_WITHDRAWAL_APPROVED_AND_SETTLED': { label: 'Client Withdrawal Settled', icon: '🎉', badgeStyle: 'background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;' },
+    'ADMIN_CLIENT_WITHDRAWAL_PAYMENT_SENT': { label: 'Admin Sent Client Payout', icon: '📤', badgeStyle: 'background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;' },
+    'CLIENT_WITHDRAWAL_REQUESTED': { label: 'Client Withdrawal Requested', icon: '💸', badgeStyle: 'background:#fffbeb; color:#92400e; border:1px solid #fde68a;' },
+    'CLIENT_WITHDRAWAL_REJECTED': { label: 'Client Withdrawal Rejected', icon: '❌', badgeStyle: 'background:#fef2f2; color:#991b1b; border:1px solid #fecaca;' },
+    'VENDOR_PAYMENT_APPROVED_AND_SETTLED': { label: 'Payment Approved by Vendor', icon: '✅', badgeStyle: 'background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;' },
+    'VENDOR_PAYMENT_REJECTED': { label: 'Payment Rejected by Vendor', icon: '❌', badgeStyle: 'background:#fef2f2; color:#991b1b; border:1px solid #fecaca;' },
+    'CLIENT_PAYMENT_DETAILS_SUBMITTED': { label: 'Client Submitted Payment (UTR)', icon: '💳', badgeStyle: 'background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;' },
+    'CLIENT_PAYMENT_REQUEST_ALLOCATED': { label: 'FCFS Vendor Match Allocated', icon: '⚡', badgeStyle: 'background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe;' },
+    'PAYMENT_APPROVED_AND_CREDITED': { label: 'Top-Up Approved & Credited', icon: '💰', badgeStyle: 'background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;' },
+    'PAYMENT_REJECTED': { label: 'Top-Up Rejected', icon: '❌', badgeStyle: 'background:#fef2f2; color:#991b1b; border:1px solid #fecaca;' },
+    'PAYMENT_CONFIRMATION_SUBMITTED': { label: 'Top-Up Proof Submitted', icon: '📥', badgeStyle: 'background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;' },
+    'TOPUP_ADMIN_RESPONDED': { label: 'Admin Assigned Top-Up Destinations', icon: '🏦', badgeStyle: 'background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;' },
+    'TOPUP_REQUEST_CREATED': { label: 'Top-Up Request Created', icon: '📥', badgeStyle: 'background:#fffbeb; color:#92400e; border:1px solid #fde68a;' },
+    'CLIENT_REGISTERED': { label: 'New Client Registered', icon: '👤', badgeStyle: 'background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe;' },
+    'CLIENT_LOGGED_IN': { label: 'Client Logged In', icon: '🔑', badgeStyle: 'background:#f8fafc; color:#475569; border:1px solid #e2e8f0;' },
+    'CLIENT_STATUS_UPDATED': { label: 'Client Status Updated', icon: '🛡️', badgeStyle: 'background:#fffbeb; color:#92400e; border:1px solid #fde68a;' },
+    'VENDOR_REGISTERED': { label: 'New Vendor Registered', icon: '🏢', badgeStyle: 'background:#dbeafe; color:#1e40af; border:1px solid #bfdbfe;' },
+    'VENDOR_APPROVED': { label: 'Vendor Approved', icon: '✅', badgeStyle: 'background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;' },
+    'VENDOR_REJECTED': { label: 'Vendor Rejected', icon: '❌', badgeStyle: 'background:#fef2f2; color:#991b1b; border:1px solid #fecaca;' },
+    'VENDOR_ACTIVATED': { label: 'Vendor Activated', icon: '🟢', badgeStyle: 'background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;' },
+    'VENDOR_DEACTIVATED': { label: 'Vendor Deactivated', icon: '🔴', badgeStyle: 'background:#fef2f2; color:#991b1b; border:1px solid #fecaca;' },
+    'MANUAL_COMMISSION_ASSIGNED': { label: 'Manual Commission Set', icon: '🏷️', badgeStyle: 'background:#fef3c7; color:#92400e; border:1px solid #fde68a;' },
+    'MANUAL_COMMISSION_REMOVED': { label: 'Manual Commission Restored', icon: '🔄', badgeStyle: 'background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;' },
+    'TIER_CREATED': { label: 'Tier Created', icon: '🏆', badgeStyle: 'background:#fef3c7; color:#92400e; border:1px solid #fde68a;' },
+    'TIER_UPDATED': { label: 'Tier Updated', icon: '✏️', badgeStyle: 'background:#f8fafc; color:#334155; border:1px solid #e2e8f0;' },
+    'TIER_DELETED': { label: 'Tier Deleted', icon: '🗑️', badgeStyle: 'background:#fef2f2; color:#991b1b; border:1px solid #fecaca;' },
+    'MONTHLY_TIER_RESET_COMPLETED': { label: 'Monthly Tier Reset', icon: '🔄', badgeStyle: 'background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe;' }
+  };
+
+  if (map[action]) return map[action];
+
+  const label = (action || 'System Action')
+    .toLowerCase()
+    .split('_')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+
+  return { label, icon: '📜', badgeStyle: 'background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;' };
+}
+
+function getAuditActorBadge(role, name, email) {
+  let roleBadge = '';
+  const cleanRole = (role || 'system').toLowerCase();
+
+  if (cleanRole === 'super_admin' || cleanRole === 'admin') {
+    roleBadge = `<span class="badge" style="background:#fee2e2; color:#991b1b; font-weight:700; border:1px solid #fca5a5;">👑 SuperAdmin</span>`;
+  } else if (cleanRole === 'vendor') {
+    roleBadge = `<span class="badge" style="background:#dbeafe; color:#1e40af; font-weight:700; border:1px solid #bfdbfe;">🏢 Vendor</span>`;
+  } else if (cleanRole === 'client') {
+    roleBadge = `<span class="badge" style="background:#e0e7ff; color:#3730a3; font-weight:700; border:1px solid #c7d2fe;">👤 Client</span>`;
+  } else {
+    roleBadge = `<span class="badge" style="background:#f1f5f9; color:#475569; font-weight:700; border:1px solid #e2e8f0;">🤖 System</span>`;
+  }
+
+  const nameDisplay = name ? `<div style="font-weight:600; color:#1e293b; font-size:0.83rem; margin-top:2px;">${escapeHtml(name)}</div>` : '';
+  const emailDisplay = email ? `<div style="font-size:0.75rem; color:#64748b;">${escapeHtml(email)}</div>` : '';
+
+  return `
+    <div>
+      ${roleBadge}
+      ${nameDisplay}
+      ${emailDisplay}
+    </div>
+  `;
+}
+
+function getAuditResourceBadge(targetType, targetId) {
+  const t = targetType || 'Resource';
+  let badgeStyle = 'background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;';
+
+  if (t.includes('ClientWithdrawal')) badgeStyle = 'background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe;';
+  else if (t.includes('VendorWithdrawal')) badgeStyle = 'background:#fce7f3; color:#be185d; border:1px solid #fbcfe8;';
+  else if (t.includes('ClientTransaction') || t.includes('Transaction')) badgeStyle = 'background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe;';
+  else if (t.includes('TopUp') || t.includes('PaymentConfirmation')) badgeStyle = 'background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;';
+  else if (t.includes('Tier')) badgeStyle = 'background:#fef3c7; color:#b45309; border:1px solid #fde68a;';
+  else if (t.includes('Client')) badgeStyle = 'background:#f3e8ff; color:#7e22ce; border:1px solid #e9d5ff;';
+  else if (t.includes('Vendor')) badgeStyle = 'background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;';
+
+  const idStr = targetId ? String(targetId) : '';
+  const idSnippet = idStr ? `<div style="font-family:monospace; font-size:0.75rem; color:#64748b; margin-top:2px;" title="${escapeHtml(idStr)}">${escapeHtml(idStr.length > 16 ? idStr.substring(0, 16) + '...' : idStr)}</div>` : '';
+
+  return `
+    <div>
+      <span class="badge" style="${badgeStyle} font-weight:700;">${escapeHtml(t)}</span>
+      ${idSnippet}
+    </div>
+  `;
+}
+
+function getAuditStatusBadge(status, action) {
+  const isRejected = (status && (status === 'REJECTED' || status === 'FAILED')) ||
+                     (action && (action.includes('REJECT') || action.includes('FAIL')));
+  
+  if (isRejected) {
+    return `<span class="badge badge-danger" style="background:#fee2e2; color:#b91c1c; font-weight:700; border:1px solid #fecaca; display:inline-flex; align-items:center; gap:4px;">✕ REJECTED</span>`;
+  }
+  return `<span class="badge badge-success" style="background:#dcfce7; color:#15803d; font-weight:700; border:1px solid #bbf7d0; display:inline-flex; align-items:center; gap:4px;">✓ SUCCESS</span>`;
+}
+
+function formatAuditMetadataChips(meta, index) {
+  if (!meta || Object.keys(meta).length === 0) {
+    return '<span class="text-muted" style="font-size:0.8rem;">No extra payload</span>';
+  }
+
+  const chips = [];
+
+  // Key fields highlights
+  if (meta.amount !== undefined || meta.requestedAmount !== undefined || meta.creditedAmount !== undefined || meta.amountPaid !== undefined) {
+    const amt = meta.amount ?? meta.requestedAmount ?? meta.creditedAmount ?? meta.amountPaid;
+    chips.push(`<span style="background:#ecfdf5; color:#065f46; font-weight:700; padding:2px 6px; border-radius:4px; font-size:0.78rem; border:1px solid #a7f3d0;">₹${Number(amt).toLocaleString('en-IN')}</span>`);
+  }
+
+  if (meta.netPaidAmount !== undefined || meta.netAmount !== undefined) {
+    const net = meta.netPaidAmount ?? meta.netAmount;
+    chips.push(`<span style="background:#eff6ff; color:#1e40af; font-weight:700; padding:2px 6px; border-radius:4px; font-size:0.78rem; border:1px solid #bfdbfe;">Net: ₹${Number(net).toLocaleString('en-IN')}</span>`);
+  }
+
+  if (meta.adminCommission !== undefined || meta.adminProfit !== undefined || meta.adminCommissionAmount !== undefined) {
+    const adm = meta.adminCommission ?? meta.adminProfit ?? meta.adminCommissionAmount;
+    const pct = meta.adminCommissionPercentage !== undefined ? ` (${meta.adminCommissionPercentage}%)` : '';
+    chips.push(`<span style="background:#fef2f2; color:#991b1b; font-weight:600; padding:2px 6px; border-radius:4px; font-size:0.78rem; border:1px solid #fecaca;">Admin: ₹${Number(adm).toLocaleString('en-IN')}${pct}</span>`);
+  }
+
+  if (meta.vendorCommission !== undefined || meta.vendorCommissionDeducted !== undefined) {
+    const v = meta.vendorCommission ?? meta.vendorCommissionDeducted;
+    chips.push(`<span style="background:#fffbeb; color:#92400e; font-weight:600; padding:2px 6px; border-radius:4px; font-size:0.78rem; border:1px solid #fde68a;">Vendor Comm: ₹${Number(v).toLocaleString('en-IN')}</span>`);
+  }
+
+  if (meta.transactionId || meta.externalTransactionId || meta.utrNumber) {
+    const utr = meta.transactionId || meta.externalTransactionId || meta.utrNumber;
+    chips.push(`<span style="background:#f8fafc; color:#334155; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-family:monospace; border:1px solid #e2e8f0;">Ref: ${escapeHtml(String(utr).slice(0, 14))}</span>`);
+  }
+
+  if (meta.rejectionReason) {
+    chips.push(`<span style="background:#fef2f2; color:#b91c1c; font-weight:600; padding:2px 6px; border-radius:4px; font-size:0.78rem; border:1px solid #fecaca;">Reason: "${escapeHtml(meta.rejectionReason.slice(0, 20))}..."</span>`);
+  }
+
+  return `
+    <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
+      ${chips.join(' ')}
+      <button class="btn btn-sm btn-secondary" style="padding:2px 8px; font-size:0.75rem; cursor:pointer;" onclick="openAuditLogDetailModal(${index})">🔍 Details</button>
+    </div>
+  `;
+}
+
 async function fetchAdminAuditLogs() {
   if (!adminToken) return;
 
@@ -1987,25 +2140,150 @@ async function fetchAdminAuditLogs() {
     const tbody = document.getElementById('adminAuditTbody');
 
     if (data.success && data.data?.logs?.length > 0) {
-      tbody.innerHTML = data.data.logs.map(log => {
-        const dateStr = new Date(log.createdAt).toLocaleString('en-IN');
+      cachedAdminAuditLogs = data.data.logs;
+      tbody.innerHTML = cachedAdminAuditLogs.map((log, index) => {
+        const dateObj = new Date(log.createdAt || log.timestamp);
+        const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+
+        const actionInfo = getAuditActionInfo(log.action);
+        const actorHtml = getAuditActorBadge(log.actorRole || log.performedByModel, log.actorName, log.actorEmail);
+        const targetHtml = getAuditResourceBadge(log.targetType || log.resourceType, log.targetId);
+        const statusHtml = getAuditStatusBadge(log.status, log.action);
+        const detailsHtml = formatAuditMetadataChips(log.metadata || log.details, index);
+
         return `
-          <tr>
-            <td><small>${dateStr}</small></td>
-            <td><strong>${log.action}</strong></td>
-            <td><span class="badge badge-default">${log.resourceType}</span></td>
-            <td><small>${log.performedByModel || 'User'}</small></td>
-            <td><span class="badge badge-${log.status === 'SUCCESS' ? 'approved' : 'rejected'}">${log.status}</span></td>
-            <td><small class="text-muted">${log.details ? JSON.stringify(log.details).slice(0, 50) + '...' : 'N/A'}</small></td>
+          <tr style="transition: background 0.15s ease;">
+            <td style="white-space: nowrap;">
+              <div style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">${dateStr}</div>
+              <div style="font-size: 0.75rem; color: #64748b;">${timeStr}</div>
+            </td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #1e293b;">
+                <span>${actionInfo.icon}</span>
+                <span>${actionInfo.label}</span>
+              </div>
+              <div style="font-size: 0.72rem; font-family: monospace; color: #94a3b8; margin-top: 2px;">
+                ${escapeHtml(log.action || '')}
+              </div>
+            </td>
+            <td>${targetHtml}</td>
+            <td>${actorHtml}</td>
+            <td>${statusHtml}</td>
+            <td>${detailsHtml}</td>
           </tr>
         `;
       }).join('');
     } else {
+      cachedAdminAuditLogs = [];
       tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No audit logs recorded yet.</td></tr>';
     }
   } catch (err) {
     console.error('fetchAdminAuditLogs error:', err);
+    const tbody = document.getElementById('adminAuditTbody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state" style="color:#dc2626;">Error loading audit logs. Please retry.</td></tr>';
+    }
   }
+}
+
+function openAuditLogDetailModal(index) {
+  const log = cachedAdminAuditLogs[index];
+  if (!log) return;
+
+  const modal = document.getElementById('auditLogDetailModal');
+  const content = document.getElementById('auditModalContent');
+  const subtitle = document.getElementById('auditModalSubtitle');
+  if (!modal || !content) return;
+
+  const dateStr = new Date(log.createdAt || log.timestamp).toLocaleString('en-IN');
+  const actionInfo = getAuditActionInfo(log.action);
+  if (subtitle) {
+    subtitle.textContent = `Event ID: ${log._id || '--'} • Logged at ${dateStr}`;
+  }
+
+  const meta = log.metadata || log.details || {};
+  const metaKeys = Object.keys(meta);
+
+  let metaGridHtml = '';
+  if (metaKeys.length > 0) {
+    metaGridHtml = `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+        <div style="font-weight: 700; font-size: 0.8rem; color: #475569; text-transform: uppercase; margin-bottom: 8px;">
+          📊 Key Financial & Operational Metadata
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          ${metaKeys.map(k => `
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px;">
+              <div style="font-size: 0.72rem; color: #64748b; text-transform: uppercase; font-weight: 600;">${escapeHtml(k)}</div>
+              <div style="font-size: 0.88rem; font-weight: 700; color: #1e293b; word-break: break-word;">
+                ${typeof meta[k] === 'number' && (k.toLowerCase().includes('amount') || k.toLowerCase().includes('commission') || k.toLowerCase().includes('balance')) ? `₹${meta[k].toLocaleString('en-IN')}` : escapeHtml(String(meta[k]))}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  content.innerHTML = `
+    <!-- Top Action Card -->
+    <div style="background: #f1f5f9; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+          <span>${actionInfo.icon}</span>
+          <span>${actionInfo.label}</span>
+        </div>
+        <div style="font-size: 0.78rem; font-family: monospace; color: #64748b; margin-top: 2px;">
+          ${escapeHtml(log.action || '')}
+        </div>
+      </div>
+      <div>
+        ${getAuditStatusBadge(log.status, log.action)}
+      </div>
+    </div>
+
+    <!-- Details Grid -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+      <div class="info-card">
+        <span class="label">Performed By (Actor)</span>
+        <span class="value">${getAuditActorBadge(log.actorRole || log.performedByModel, log.actorName, log.actorEmail)}</span>
+      </div>
+
+      <div class="info-card">
+        <span class="label">Target Resource</span>
+        <span class="value">${getAuditResourceBadge(log.targetType || log.resourceType, log.targetId)}</span>
+      </div>
+
+      <div class="info-card">
+        <span class="label">Event Timestamp</span>
+        <span class="value" style="font-size: 0.85rem;">${dateStr}</span>
+      </div>
+
+      <div class="info-card">
+        <span class="label">Origin IP Address</span>
+        <span class="value" style="font-family: monospace; font-size: 0.85rem;">${escapeHtml(log.ipAddress || 'Internal / System')}</span>
+      </div>
+    </div>
+
+    <!-- Metadata Grid -->
+    ${metaGridHtml}
+
+    <!-- Raw JSON Viewer -->
+    <div style="margin-top: 12px;">
+      <details style="background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 0.78rem; font-family: monospace;">
+        <summary style="cursor: pointer; color: #38bdf8; font-weight: 600;">{ } View Full Raw JSON Payload</summary>
+        <pre style="margin-top: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; color: #a5f3fc;">${escapeHtml(JSON.stringify(log, null, 2))}</pre>
+      </details>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+}
+
+function closeAuditLogDetailModal() {
+  const modal = document.getElementById('auditLogDetailModal');
+  if (modal) modal.classList.add('hidden');
 }
 
 /**

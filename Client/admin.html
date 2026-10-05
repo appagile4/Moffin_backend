@@ -3447,6 +3447,31 @@
       </div>
     </div>
 
+    <!-- MODAL 14: AUDIT LOG DETAIL & PAYLOAD VIEWER -->
+    <div id="auditLogDetailModal" class="modal-backdrop hidden">
+      <div class="modal-card card" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
+        <div class="card-header flex-between">
+          <div>
+            <h3 style="color: #1e293b; display: flex; align-items: center; gap: 8px;">
+              📜 Audit Event Details
+            </h3>
+            <p class="subtitle" id="auditModalSubtitle" style="margin-top: 2px;">Immutable system & financial record</p>
+          </div>
+          <button class="btn btn-sm btn-secondary" onclick="closeAuditLogDetailModal()">✕</button>
+        </div>
+
+        <div id="auditModalContent" style="margin-top: 12px;">
+          <!-- Injected via JS -->
+        </div>
+
+        <div class="modal-actions" style="margin-top: 1.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeAuditLogDetailModal()">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
     <script src="admin.js"></script>
   </body>
 </html>

@@ -229,10 +229,87 @@ router.get('/profits', authMiddleware, adminAuth, adminGetProfitAnalytics);
 // =============================================================================
 // 11. AUDIT LOGS
 // =============================================================================
+const mongoose = require('mongoose');
 const AuditLog = require('../models/auditLogModel');
+const Admin = require('../models/adminModel');
+const Vendor = require('../models/vendorModel');
+const Client = require('../models/clientModel');
+
 router.get('/audit-logs', authMiddleware, adminAuth, async (req, res, next) => {
   try {
-    const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(100);
+    const rawLogs = await AuditLog.find().sort({ createdAt: -1 }).limit(150).lean();
+
+    // Collect actor IDs by role for bulk resolution
+    const adminIds = new Set();
+    const vendorIds = new Set();
+    const clientIds = new Set();
+
+    rawLogs.forEach(l => {
+      if (l.actor && mongoose.Types.ObjectId.isValid(l.actor)) {
+        const idStr = l.actor.toString();
+        if (l.actorRole === 'super_admin' || l.actorRole === 'admin') adminIds.add(idStr);
+        else if (l.actorRole === 'vendor') vendorIds.add(idStr);
+        else if (l.actorRole === 'client') clientIds.add(idStr);
+      }
+    });
+
+    const [admins, vendors, clients] = await Promise.all([
+      adminIds.size > 0 ? Admin.find({ _id: { $in: Array.from(adminIds) } }).select('name email role').lean() : [],
+      vendorIds.size > 0 ? Vendor.find({ _id: { $in: Array.from(vendorIds) } }).select('firstName lastName email mobileNumber').lean() : [],
+      clientIds.size > 0 ? Client.find({ _id: { $in: Array.from(clientIds) } }).select('firstName lastName email mobile').lean() : []
+    ]);
+
+    const adminMap = new Map(admins.map(a => [a._id.toString(), a]));
+    const vendorMap = new Map(vendors.map(v => [v._id.toString(), v]));
+    const clientMap = new Map(clients.map(c => [c._id.toString(), c]));
+
+    const logs = rawLogs.map(log => {
+      let actorName = '';
+      let actorEmail = '';
+      const actorIdStr = log.actor ? log.actor.toString() : '';
+
+      if (log.actorRole === 'super_admin' || log.actorRole === 'admin') {
+        const adminDoc = adminMap.get(actorIdStr);
+        if (adminDoc) {
+          actorName = adminDoc.name || 'SuperAdmin';
+          actorEmail = adminDoc.email || '';
+        } else {
+          actorName = 'SuperAdmin';
+        }
+      } else if (log.actorRole === 'vendor') {
+        const vendorDoc = vendorMap.get(actorIdStr);
+        if (vendorDoc) {
+          actorName = `${vendorDoc.firstName || ''} ${vendorDoc.lastName || ''}`.trim() || 'Vendor';
+          actorEmail = vendorDoc.email || '';
+        } else {
+          actorName = 'Vendor';
+        }
+      } else if (log.actorRole === 'client') {
+        const clientDoc = clientMap.get(actorIdStr);
+        if (clientDoc) {
+          actorName = `${clientDoc.firstName || ''} ${clientDoc.lastName || ''}`.trim() || 'Client';
+          actorEmail = clientDoc.email || '';
+        } else {
+          actorName = 'Client';
+        }
+      } else if (log.actorRole === 'system') {
+        actorName = 'System Engine';
+      }
+
+      const isFailure = log.action && (log.action.includes('REJECT') || log.action.includes('FAIL'));
+      const status = isFailure ? 'REJECTED' : 'SUCCESS';
+
+      return {
+        ...log,
+        resourceType: log.targetType,
+        performedByModel: log.actorRole,
+        actorName,
+        actorEmail,
+        status,
+        details: log.metadata || {}
+      };
+    });
+
     res.status(200).json({ success: true, count: logs.length, data: { logs } });
   } catch (err) {
     next(err);
