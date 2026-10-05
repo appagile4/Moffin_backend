@@ -1372,24 +1372,38 @@ async function fetchVendorTierMovements() {
     if (!container) return;
 
     if (data.success && data.data?.movements?.length > 0) {
+      container.classList.remove('is-empty');
+      container.classList.add('has-items');
       container.innerHTML = data.data.movements.map(m => {
         const dateStr = new Date(m.changedAt).toLocaleString('en-IN');
+        const commRate = m.newCommission !== undefined ? m.newCommission : (m.newCommissionRate || 0);
+        const prevComm = m.previousCommission !== undefined ? m.previousCommission : null;
+        const commChangeText = prevComm !== null && prevComm !== commRate 
+          ? `${prevComm}% ➔ ${commRate}%` 
+          : `${commRate}%`;
+
         return `
           <div class="timeline-item">
             <div class="timeline-content">
               <div class="timeline-header">
-                <strong>${m.previousTierName} ➔ ${m.newTierName}</strong>
+                <strong style="color: var(--primary); font-weight: 700;">${m.previousTierName} ➔ ${m.newTierName}</strong>
                 <small class="text-muted">${dateStr}</small>
               </div>
               <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">
-                Volume reached: <strong>₹${(m.totalMonthlyTopUp || 0).toLocaleString('en-IN')}</strong> (+₹${(m.topUpAmountAtChange || 0).toLocaleString('en-IN')}) | Commission: ${m.newCommissionRate}%
+                Volume reached: <strong>₹${(m.totalMonthlyTopUp || 0).toLocaleString('en-IN')}</strong> (+₹${(m.topUpAmountAtChange || 0).toLocaleString('en-IN')}) | Commission: <strong>${commChangeText}</strong>
               </p>
             </div>
           </div>
         `;
       }).join('');
     } else {
-      container.innerHTML = '<p class="empty-state">No rank movements recorded this month yet.</p>';
+      container.classList.remove('has-items');
+      container.classList.add('is-empty');
+      container.innerHTML = `
+        <div class="empty-state" style="padding: 1.5rem 0; text-align: center; color: var(--text-muted); margin: 0;">
+          <p style="margin: 0; font-size: 0.9rem;">No rank movements recorded this month yet.</p>
+        </div>
+      `;
     }
   } catch (err) {
     console.error('fetchVendorTierMovements error:', err);

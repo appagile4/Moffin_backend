@@ -187,8 +187,16 @@ const getVendorMonthlyHistory = async (req, res) => {
  */
 const getVendorTierMovements = async (req, res) => {
   try {
-    const vendorId = req.params.vendorId || req.user.id || req.user._id;
-    const movements = await TierMovementLog.find({ vendorId })
+    const rawVendorId = req.params.vendorId || req.user?.id || req.user?._id;
+    if (!rawVendorId) {
+      return sendError(res, 400, 'Vendor ID is required');
+    }
+
+    const query = mongoose.Types.ObjectId.isValid(rawVendorId)
+      ? { $or: [{ vendorId: new mongoose.Types.ObjectId(rawVendorId) }, { vendorId: rawVendorId.toString() }] }
+      : { vendorId: rawVendorId };
+
+    const movements = await TierMovementLog.find(query)
       .sort({ changedAt: -1 })
       .limit(50);
 

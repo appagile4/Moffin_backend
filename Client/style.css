@@ -723,10 +723,14 @@ input:focus, select:focus, textarea:focus {
 /* Timeline */
 .timeline {
   position: relative;
+  padding-left: 0;
+}
+
+.timeline:has(.timeline-item) {
   padding-left: 1.5rem;
 }
 
-.timeline::before {
+.timeline:has(.timeline-item)::before {
   content: "";
   position: absolute;
   left: 6px;
@@ -734,6 +738,16 @@ input:focus, select:focus, textarea:focus {
   bottom: 6px;
   width: 2px;
   background: var(--border);
+}
+
+.timeline.is-empty,
+.timeline.is-empty::before {
+  padding-left: 0 !important;
+}
+
+.timeline.is-empty::before {
+  display: none !important;
+  content: none !important;
 }
 
 .timeline-item {
